@@ -89,12 +89,15 @@ curl -s https://awesome-dsh-plugin.com/plugins.json           # 注册表数据(
 | 公司终端安全策略静默删除"隐藏启动 cmd+重定向"类 .cmd 脚本 | 脚本用 `start /min`(可见最小化窗口)而非 `-WindowStyle Hidden` |
 | git push 频繁 Connection reset | 重试循环 + `git -c http.proxy= -c https.proxy= push`(代理绕过) |
 
-## 应用双通道发布(2026-08-25 起)
+## 应用三段式发布(2026-08-25 起)
 
-桌面应用(dsh-desktop-windowos)的 GitHub Release 分两步走:
+桌面应用(dsh-desktop-windowos)的 GitHub Release 分三段:
 
-1. **开发收敛 → 预发布(开发版)**:`gh release create vX --prerelease ...`——`releases/latest` 天然排除预发布,家里机器与外部用户的自动更新不会碰到;公司机手动换装验证
-2. **用户确认稳定 → 转正(稳定版)**:`gh release edit vX --prerelease=false --latest`——自动更新开始推送,无需重传资产
+1. **开发期 → 预发布(开发版)**:`gh release create vX --prerelease ...`
+2. **收敛后的稳定性检查版(含修 bug 迭代)→ 仍走预发布**——不因功能收敛自动转正
+3. **用户明确确认稳定 → 转正(稳定版)**:`gh release edit vX --prerelease=false --latest`
+
+`releases/latest` 天然排除预发布,家里机器与外部用户的自动更新全程不受开发版影响;公司机手动换装承担验证。
 
 ## 版本与发布节奏(2026-08-16 起)
 
