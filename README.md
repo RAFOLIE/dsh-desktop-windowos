@@ -16,6 +16,16 @@ DeepSeek Harness(DSH)的 Windows 桌面壳,基于 **Tauri v2 + React 18 + TypeSc
 
 **推荐用法**:在任意文件夹执行 `pnpm add @deepseek-ai/dsh`(或 `npm i @deepseek-ai/dsh`),把 exe 放进**同一文件夹的根目录**双击即可——应用自动发现旁边的 `node_modules\.bin\dsh.cmd`,启动零下载、零配置、不询问。
 
+### 更新通道(三段式发布)
+
+应用按三段式节奏发布,`releases/latest` **只包含稳定版**:
+
+1. **开发期**:每个迭代版本发为 GitHub **预发布(开发版)**——自动更新不触碰(latest 天然排除),想尝鲜从 [Releases](https://github.com/RAFOLIE/dsh-desktop-windowos/releases) 手动下载
+2. **稳定性检查**:功能收敛后的检查版与修 bug 迭代**仍走预发布**
+3. **稳定版**:仅当作者确认稳定使用后才转正(latest),桌面端自动更新开闸——已装用户下次启动即升级
+
+桌面端自动更新始终只追稳定版;预发布仅供手动尝鲜与测试机验证。
+
 ### 功能
 
 - **开箱即用**:双击 exe 自动启动 DSH(`dsh web`),就绪后窗口内嵌 `http://127.0.0.1:3080/` 的**原生 webchat 界面**(iframe 常驻壳,不自创聊天 UI、不做反向代理);DSH rc.8+ 本地运行会自动开浏览器,壳按版本探测追加 `--no-open` 抑制(老版本零影响)
@@ -72,16 +82,6 @@ dsh plugin --profile web add dsh-desktop-plugin
    - **之前选过「下载并启动」** → 自动经 `npx --yes @deepseek-ai/dsh web` 拉起(首选项记录在 `%LOCALAPPDATA%\dsh-desktop\settings.json`)
 3. 若本地没有任何 DSH:启动页提供选择——**「一键全局安装并启动(推荐)」**(应用直接执行 `npm install -g @deepseek-ai/dsh`,约 1-3 分钟)/「下载并启动(npx,备选)」/粘贴已知 `dsh.cmd` 路径/「重新检测」/「退出」,不会未经同意就下载;需 Node.js(^22.19 或 ≥ 24)
 
-### 更新通道(三段式发布)
-
-应用按三段式节奏发布,`releases/latest` **只包含稳定版**:
-
-1. **开发期**:每个迭代版本发为 GitHub **预发布(开发版)**——自动更新不触碰(latest 天然排除),想尝鲜从 [Releases](https://github.com/RAFOLIE/dsh-desktop-windowos/releases) 手动下载
-2. **稳定性检查**:功能收敛后的检查版与修 bug 迭代**仍走预发布**
-3. **稳定版**:仅当作者确认稳定使用后才转正(latest),桌面端自动更新开闸——已装用户下次启动即升级
-
-桌面端自动更新始终只追稳定版;预发布仅供手动尝鲜与测试机验证。
-
 ### 构建前提(Windows)
 
 - Rust msvc 工具链 + VS 2022 生成工具("MSVC v143 C++ 生成工具" + Windows 11 SDK)
@@ -122,6 +122,16 @@ Launch the app → it auto-starts the local DSH web service → the window embed
 Ships as a **single portable bare exe** (~4.5 MB, no installer).
 
 **Recommended setup**: run `pnpm add @deepseek-ai/dsh` (or `npm i @deepseek-ai/dsh`) in any folder, then drop the exe into **that folder's root** and double-click — the app auto-discovers the adjacent `node_modules\.bin\dsh.cmd`: zero download, zero config, no questions asked.
+
+### Release channels (three-stage)
+
+`releases/latest` carries **stable builds only**:
+
+1. **Development**: every iteration ships as a GitHub **pre-release** — auto-update never touches it (latest excludes pre-releases); grab one manually from [Releases](https://github.com/RAFOLIE/dsh-desktop-windowos/releases) to try early builds
+2. **Stability checks**: post-convergence check builds and bugfix rounds stay on pre-release
+3. **Stable**: promoted to latest only after the author confirms real-world stability — that is when auto-update picks it up (next app launch)
+
+The desktop auto-updater always tracks the stable channel; pre-releases are for manual early adoption and test machines.
 
 ### Features
 
@@ -174,16 +184,6 @@ After restarting DSH, the plugin auto-installs the exe into `%LOCALAPPDATA%\Prog
    - **DSH installed locally** (`pnpm add @deepseek-ai/dsh` beside the exe, in the working dir, or the user profile) → `node_modules\.bin\dsh.cmd` is discovered and used
    - **"Download" picked before** → DSH auto-starts via `npx --yes @deepseek-ai/dsh web` (choice persisted in `%LOCALAPPDATA%\dsh-desktop\settings.json`)
 3. With no local DSH at all: the boot page offers — **"一键全局安装并启动" (one-click global install, recommended; the app runs `npm install -g @deepseek-ai/dsh` itself, ~1-3 min)** / "下载并启动" (npx fallback) / paste a known `dsh.cmd` path / "重新检测" (re-detect) / "退出" (exit). Nothing downloads without consent; Node.js ^22.19 or ≥ 24 is required
-
-### Release channels (three-stage)
-
-`releases/latest` carries **stable builds only**:
-
-1. **Development**: every iteration ships as a GitHub **pre-release** — auto-update never touches it (latest excludes pre-releases); grab one manually from [Releases](https://github.com/RAFOLIE/dsh-desktop-windowos/releases) to try early builds
-2. **Stability checks**: post-convergence check builds and bugfix rounds stay on pre-release
-3. **Stable**: promoted to latest only after the author confirms real-world stability — that is when auto-update picks it up (next app launch)
-
-The desktop auto-updater always tracks the stable channel; pre-releases are for manual early adoption and test machines.
 
 ### Building (Windows)
 
