@@ -455,7 +455,7 @@ fn try_candidate(app: &AppHandle, candidate: &Candidate) -> Attempt {
             match child.try_wait() {
                 Ok(Some(status)) => {
                     let tail = child_tail_last(8);
-                    let excerpt = child_tail_excerpt(4);
+                    let excerpt = child_tail_digest(4);
                     if !excerpt.is_empty() {
                         log_write(
                             LogLevel::Error,
@@ -497,7 +497,7 @@ fn try_candidate(app: &AppHandle, candidate: &Candidate) -> Attempt {
             if Instant::now() >= deadline {
                 kill_tree(pid);
                 let _ = child.wait();
-                let excerpt = child_tail_excerpt(4);
+                let excerpt = child_tail_digest(4);
                 return Attempt::Failed(format!(
                     "就绪超时{}\n",
                     if excerpt.is_empty() {
@@ -547,6 +547,28 @@ fn child_tail_clear() {
 /// One-line digest of the tail for log lines.
 pub(crate) fn child_tail_excerpt(max_lines: usize) -> String {
     child_tail_last(max_lines).join(" ⏎ ")
+}
+
+/// Meaningful digest for error surfaces: Node dumps put the real message
+/// ABOVE the stack — the last N lines are often just closing braces and the
+/// engine banner (2026-08-25 report: the log showed "} } ⏎ Node.js v24.13.0"
+/// while the actual "plugin tree failed to load" line sat unread in the
+/// ring). Find the FIRST error-looking headline and excerpt from there,
+/// falling back to the plain tail.
+pub(crate) fn child_tail_digest(max_lines: usize) -> String {
+    let tail = child_tail_last(CHILD_TAIL_CAP);
+    if let Some(pos) = tail.iter().position(|line| {
+        line.starts_with("Error")
+            || line.contains("Cannot find")
+            || line.contains("failed to")
+            || line.contains("ERR_")
+            || line.contains("FATAL")
+            || line.contains("Exception")
+    }) {
+        let end = (pos + max_lines).min(tail.len());
+        return tail[pos..end].join(" ⏎ ");
+    }
+    child_tail_excerpt(max_lines)
 }
 
 /// Keep the tail ring fed; runs on its own thread per stream and ends at
@@ -1120,7 +1142,7 @@ fn supervise_child(app: AppHandle, mut child: Child, pid: u32, spawned_at: Insta
     supervision_log(&format!("supervised dsh web (pid {pid}) exited unexpectedly; healing"));
     // The child's last words name the real cause (e.g. a cooldown-skipped
     // profile bundle) — keep them in the log and in user-facing errors.
-    let excerpt = child_tail_excerpt(6);
+    let excerpt = child_tail_digest(6);
     if !excerpt.is_empty() {
         log_write(LogLevel::Error, &format!("[child] {excerpt}"));
     }

@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.6.9 — 2026-08-25
+
+修复:**崩溃摘录截到堆栈垃圾**。08-25 实例:dsh web 因插件包改名崩溃,日志里的摘录只有「} } ⏎ Node.js v24.13.0」——真正的错误行(plugin tree failed to load... Cannot find package)在 60 行环形缓冲里,但摘录取的是最后几行。Node 的报错形态是消息在上、堆栈和大括号垫底。
+
+- 新增 `child_tail_digest()`:错误展示场景(候选早退日志/失败消息/监护自愈)从尾部第一条「Error/Cannot find/failed to/ERR_」类标题行开始摘录,找不到才回退纯尾部
+- 实测:同型假崩溃下,日志直接以 `Error: dsh: plugin tree failed to load...` 开头
+
+Fix: crash digests quoted the stack's closing braces instead of the message. Node puts the real error ABOVE the stack; digests now start at the first error-looking headline line.
+
 ## v1.6.8 — 2026-08-21
 
 适配:**DSH rc.8 的 `dsh web` 自动打开浏览器**——桌面壳自己就显示 webchat,再弹浏览器是多余的。
