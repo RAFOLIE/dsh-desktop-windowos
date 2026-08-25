@@ -200,7 +200,10 @@ fn no_open_suffix(dsh_path: &str) -> &'static str {
 
 /// Run `"<dsh>" web --help` hidden and check whether the flag family lists
 /// --no-open. --help is safe on every version (unknown options only fail at
-/// parse time).
+/// parse time). Hard-capped: rc.2 prints the help immediately but its boot
+/// path lingers (background loaders keep the process alive), so an
+/// unbounded wait once wedged the whole startup chain (2026-08-25) — after
+/// 8s we take whatever printed, kill the tree, and judge from that.
 fn web_help_mentions_no_open(dsh_path: &str) -> bool {
     let mut command = Command::new("cmd");
     #[cfg(windows)]
@@ -213,7 +216,27 @@ fn web_help_mentions_no_open(dsh_path: &str) -> bool {
     {
         command.arg("-c").arg(format!("'{dsh_path}' web --help"));
     }
-    let Ok(output) = command.output() else {
+    command.stdout(Stdio::piped()).stderr(Stdio::null());
+    let Ok(mut child) = command.spawn() else {
+        return false;
+    };
+    let deadline = Instant::now() + Duration::from_secs(8);
+    let mut exited = false;
+    while Instant::now() < deadline {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                exited = true;
+                break;
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(150)),
+            Err(_) => return false,
+        }
+    }
+    if !exited {
+        supervision_log("--no-open probe timed out after 8s (help printed but lingered); killing and judging from partial output");
+        kill_tree(child.id());
+    }
+    let Ok(output) = child.wait_with_output() else {
         return false;
     };
     let text = String::from_utf8_lossy(&output.stdout).to_string()

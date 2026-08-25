@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.6.11 — 2026-08-25 【开发版/预发布】
+
+修复:**--no-open 探测无超时,可堵死整个启动链**。DSH 0.1.1-rc.2 的 `web --help` 打印完帮助后不退出(boot 路径会拉起后台加载器),探测 `command.output()` 无限等待——实机表现:应用停在启动页,唯一子进程是赖着的 help,永无候选尝试(08-25 晚实抓)。
+
+- 探测加 **8 秒硬超时**:超时即取已打印输出判定 + 杀进程树(`taskkill /T`),日志留痕;实测超时路径下仍正确识别 --no-open,启动 13 秒内完成
+- 本版为**三段式发布政策生效后的首个开发版**:预发布通道,latest 不含,公司机验证;作者确认稳定后转正
+
+Fix: the --no-open probe had no timeout and could wedge the whole startup chain — rc.2's `web --help` prints then lingers. The probe is now hard-capped at 8s (judge from partial output, kill the tree). First release under the three-stage policy: prerelease channel.
+
 ## v1.6.10 — 2026-08-25
 
 新增:环境面板「组件版本」加入 **DSH 后端 (dsh web) 版本**——优先从正在运行的 3080 进程命令行解析真实安装(附加模式也准),回退按 dsh 启动器(全局 npm/本地安装)推导;诊断包随 env_info 自动携带。今天 genui 改名事故里"我到底跑的哪个 dsh"要翻目录,现在面板一眼可查。
