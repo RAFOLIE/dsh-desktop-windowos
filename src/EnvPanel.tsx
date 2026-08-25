@@ -6,6 +6,7 @@ export type EnvInfo = {
   app?: { version?: string; installDir?: string };
   dsh?: {
     portAnswering?: boolean;
+    webVersion?: string | null;
     owner?: { pid?: number; cmd?: string; chain?: string; owned?: boolean } | null;
     dshCmd?: string | null;
     dshCwd?: string | null;
@@ -485,6 +486,9 @@ export default function EnvPanel({
                         </SectionCard>
 
                         <SectionCard title="组件版本">
+                          {matches("DSH 后端", dsh?.webVersion) && (
+                            <FieldRow label="DSH 后端 (dsh web)" value={dsh?.webVersion ?? null} mono onCopy={copy} />
+                          )}
                           {matches("dsh-desktop-plugin", info.plugins?.dshDesktopPlugin) && (
                             <FieldRow label="dsh-desktop-plugin" value={info.plugins?.dshDesktopPlugin ?? null} mono onCopy={copy} />
                           )}

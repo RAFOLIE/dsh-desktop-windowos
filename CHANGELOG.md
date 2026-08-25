@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.6.10 — 2026-08-25
+
+新增:环境面板「组件版本」加入 **DSH 后端 (dsh web) 版本**——优先从正在运行的 3080 进程命令行解析真实安装(附加模式也准),回退按 dsh 启动器(全局 npm/本地安装)推导;诊断包随 env_info 自动携带。今天 genui 改名事故里"我到底跑的哪个 dsh"要翻目录,现在面板一眼可查。
+
+Feature: the 组件版本 card now shows the running dsh web backend version (from the live process's own command line, falling back to launcher-based resolution); rides along in diagnostic bundles.
+
 ## v1.6.9 — 2026-08-25
 
 修复:**崩溃摘录截到堆栈垃圾**。08-25 实例:dsh web 因插件包改名崩溃,日志里的摘录只有「} } ⏎ Node.js v24.13.0」——真正的错误行(plugin tree failed to load... Cannot find package)在 60 行环形缓冲里,但摘录取的是最后几行。Node 的报错形态是消息在上、堆栈和大括号垫底。

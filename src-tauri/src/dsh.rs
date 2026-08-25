@@ -1074,6 +1074,64 @@ fn dir_size_bounded(dir: &Path) -> Option<u64> {
     Some(total)
 }
 
+/// The version of the dsh package actually serving `web`: read from the
+/// running process's own command line when possible (points at the real
+/// install even in attach mode), else derived from the dsh launcher on PATH
+/// or a local install.
+fn dsh_web_version() -> Option<String> {
+    let read_version = |pkg_root: &Path| -> Option<String> {
+        let text = std::fs::read_to_string(pkg_root.join("package.json")).ok()?;
+        serde_json::from_str::<Value>(&text)
+            .ok()?
+            ["version"]
+            .as_str()
+            .map(str::to_string)
+    };
+    // Running backend: cmd line embeds ...\node_modules\@deepseek-ai\dsh\lib\...
+    if let Some(cmd) = port_owner_info()
+        .and_then(|owner| owner["cmd"].as_str().map(str::to_string))
+    {
+        if let Some(pos) = cmd.find("node_modules\\@deepseek-ai\\dsh") {
+            let tail = &cmd[pos..];
+            if let Some(lib) = tail.find("\\lib\\") {
+                let pkg_root = &tail[..lib]; // node_modules\@deepseek-ai\dsh
+                if let Some(v) = read_version(Path::new(pkg_root)) {
+                    return Some(v);
+                }
+            }
+        }
+    }
+    // Global launcher: <npm-dir>\dsh.cmd → <npm-dir>\node_modules\@deepseek-ai\dsh
+    if let Some(shim) = where_first("dsh") {
+        if let Some(dir) = Path::new(&shim).parent() {
+            if let Some(v) =
+                read_version(&dir.join("node_modules").join("@deepseek-ai").join("dsh"))
+            {
+                return Some(v);
+            }
+            // Local install: <root>\node_modules\.bin\dsh.cmd → <root>\node_modules\@deepseek-ai\dsh
+            if dir.file_name().map(|n| n == ".bin").unwrap_or(false) {
+                if let Some(root) = dir.parent() {
+                    if let Some(v) = read_version(&root.join("@deepseek-ai").join("dsh")) {
+                        return Some(v);
+                    }
+                }
+            }
+        }
+    }
+    // Local install fallback without PATH.
+    if let Some((shim, _root)) = find_local_install() {
+        if let Some(bin) = shim.parent() {
+            if let Some(root) = bin.parent() {
+                if let Some(v) = read_version(&root.join("@deepseek-ai").join("dsh")) {
+                    return Some(v);
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Environment facts for the env panel, modelled on Comfy Desktop's
 /// StatusFactPanel data shape: every field is gathered independently and
 /// degrades to null — the panel never hangs on a probe.
@@ -1091,6 +1149,7 @@ pub fn env_info(app: &AppHandle) -> Value {
         },
         "dsh": {
             "portAnswering": probe_ready_once(),
+            "webVersion": dsh_web_version(),
             "owner": port_owner_info(),
             "dshCmd": std::env::var("DSH_CMD").ok().filter(|v| !v.trim().is_empty()),
             "dshCwd": std::env::var("DSH_CWD").ok().filter(|v| !v.trim().is_empty()),
