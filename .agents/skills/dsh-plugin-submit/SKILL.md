@@ -89,6 +89,13 @@ curl -s https://awesome-dsh-plugin.com/plugins.json           # 注册表数据(
 | 公司终端安全策略静默删除"隐藏启动 cmd+重定向"类 .cmd 脚本 | 脚本用 `start /min`(可见最小化窗口)而非 `-WindowStyle Hidden` |
 | git push 频繁 Connection reset | 重试循环 + `git -c http.proxy= -c https.proxy= push`(代理绕过) |
 
+## 应用双通道发布(2026-08-25 起)
+
+桌面应用(dsh-desktop-windowos)的 GitHub Release 分两步走:
+
+1. **开发收敛 → 预发布(开发版)**:`gh release create vX --prerelease ...`——`releases/latest` 天然排除预发布,家里机器与外部用户的自动更新不会碰到;公司机手动换装验证
+2. **用户确认稳定 → 转正(稳定版)**:`gh release edit vX --prerelease=false --latest`——自动更新开始推送,无需重传资产
+
 ## 版本与发布节奏(2026-08-16 起)
 
 - **插件 npm 包按需且限频发布**:仅当插件本身有功能变更时才发 npm,且**至多隔一天发一次**(变更攒批发布),非常紧急的修复例外;应用版本自由前进(GitHub Release 即完成发布)
