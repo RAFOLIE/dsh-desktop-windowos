@@ -77,7 +77,7 @@ dsh plugin --profile web add dsh-desktop-plugin
 应用按三段式节奏发布,`releases/latest` **只包含稳定版**:
 
 1. **开发期**:每个迭代版本发为 GitHub **预发布(开发版)**——自动更新不触碰(latest 天然排除),想尝鲜从 [Releases](https://github.com/RAFOLIE/dsh-desktop-windowos/releases) 手动下载
-2. **稳定性检查**:功能收敛后的检查版与修 bug 迭代**仍走预发布**,继续试跑
+2. **稳定性检查**:功能收敛后的检查版与修 bug 迭代**仍走预发布**
 3. **稳定版**:仅当作者确认稳定使用后才转正(latest),桌面端自动更新开闸——已装用户下次启动即升级
 
 桌面端自动更新始终只追稳定版;预发布仅供手动尝鲜与测试机验证。
