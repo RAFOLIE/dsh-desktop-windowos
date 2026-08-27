@@ -403,7 +403,7 @@ function UpdateTab({
               onClick={() => setMenuOpen((o) => !o)}
             >
               {selChannel.title}
-              <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 3.5 5 7.5 9 3.5" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
+              <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 3.5 5 7.5 9 3.5" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
             </button>
             {menuOpen && (
               <div className="ep-select-menu" role="listbox">
@@ -419,7 +419,7 @@ function UpdateTab({
                     <span className="ep-select-title">{ch.title}</span>
                     <span className="ep-select-desc">{ch.desc}</span>
                     {channel === ch.id && (
-                      <svg className="ep-select-check" viewBox="0 0 14 14" aria-hidden="true">
+                      <svg className="ep-select-check" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
                         <path d="M2.5 7.5 6 11 11.5 4" fill="none" stroke="#4c9aff" strokeWidth="1.6" />
                       </svg>
                     )}
