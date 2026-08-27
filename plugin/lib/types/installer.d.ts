@@ -13,7 +13,8 @@ export type DownloadRoute = {
     kind: 'mirror';
     prefix: string;
 };
-/** Environment proxies for the route chain, in standard precedence order. */
+/** Environment proxies for the route chain, in standard precedence order.
+ *  Non-http(s) values are dropped — they must never reach spawn args. */
 export declare function envProxies(): string[];
 /** The ordered chain: direct (overseas) → env proxies → probed local ports
  *  (proxied users) → public mirrors (proxy-less blocked networks). */
@@ -69,7 +70,9 @@ export interface WebShortcutResult {
 }
 /** Absolute path of the desktop exe under the configured install dir. */
 export declare function exePathOf(config: ResolvedConfig): string;
-/** Prefix a release-asset URL with the configured mirror when present. */
+/** Prefix a release-asset URL with the configured mirror when present.
+ *  Only http(s) prefixes are honored — a crafted `assetProxy` (e.g. starting
+ *  with `-`) must never reach spawn args or change the effective URL. */
 export declare function resolveAssetUrl(config: ResolvedConfig, url: string): string;
 /**
  * Pick the desktop exe asset (download URL + version) from a GitHub release

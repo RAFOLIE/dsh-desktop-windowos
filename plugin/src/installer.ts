@@ -7,7 +7,34 @@ import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as net from 'node:net'
+import * as os from 'node:os'
+import * as path from 'node:path'
 import type { ResolvedConfig } from './config.js'
+
+/** Only http(s) URLs are accepted for proxies/mirror prefixes — anything else
+ *  (notably values starting with `-`) would flow into spawn args as curl
+ *  options instead of arguments. */
+function isHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value)
+}
+
+/** Strip path-separator and traversal characters from user-settable file
+ *  names (shortcut names) so they can never escape their target directory. */
+function safeFileName(name: string): string {
+  const cleaned = name.replace(/[\\/:*?"<>|]/g, '_').replace(/\.{2,}/g, '_').trim()
+  return cleaned === '' ? 'shortcut' : cleaned
+}
+
+/** Refuse to write outside `baseDir` — defense against config-derived
+ *  traversal (installDir/shortcut names) reaching writeFile. */
+function ensureWithin(baseDir: string, target: string): string {
+  const resolvedBase = path.resolve(baseDir)
+  const resolved = path.resolve(target)
+  if (resolved !== resolvedBase && !resolved.startsWith(resolvedBase + path.sep)) {
+    throw new Error(`refusing to write outside ${resolvedBase}: ${resolved}`)
+  }
+  return resolved
+}
 
 /** Public GitHub asset mirrors (prefix + asset URL), last-resort tier for
  *  proxy-less networks; every transfer through them is verified against the
@@ -21,12 +48,13 @@ const LOCAL_PROXY_PORTS = ['7890', '7891', '7897', '7898', '10808', '10809']
 /** One download route: direct, through a proxy, or through a mirror prefix. */
 export type DownloadRoute = { kind: 'direct' } | { kind: 'proxy', url: string } | { kind: 'mirror', prefix: string }
 
-/** Environment proxies for the route chain, in standard precedence order. */
+/** Environment proxies for the route chain, in standard precedence order.
+ *  Non-http(s) values are dropped — they must never reach spawn args. */
 export function envProxies(): string[] {
   const list: string[] = []
   for (const key of ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'] as const) {
     const value = process.env[key]
-    if (value !== undefined && value !== '' && !list.includes(value)) list.push(value)
+    if (value !== undefined && value !== '' && isHttpUrl(value) && !list.includes(value)) list.push(value)
   }
   return list
 }
@@ -116,9 +144,13 @@ export function exePathOf(config: ResolvedConfig): string {
   return `${config.installDir}\\dsh-desktop-windowos.exe`
 }
 
-/** Prefix a release-asset URL with the configured mirror when present. */
+/** Prefix a release-asset URL with the configured mirror when present.
+ *  Only http(s) prefixes are honored — a crafted `assetProxy` (e.g. starting
+ *  with `-`) must never reach spawn args or change the effective URL. */
 export function resolveAssetUrl(config: ResolvedConfig, url: string): string {
-  return config.assetProxy === '' ? url : `${config.assetProxy}${url}`
+  return config.assetProxy !== '' && isHttpUrl(config.assetProxy)
+    ? `${config.assetProxy}${url}`
+    : url
 }
 
 /**
@@ -176,13 +208,19 @@ function proxyAlive(proxy: string): Promise<boolean> {
 }
 
 /** One curl run for a route (proxy adds -x, mirror fetches prefix+url).
- *  Aborting `signal` kills the curl child so job cancellation stays prompt. */
+ *  Aborting `signal` kills the curl child so job cancellation stays prompt.
+ *  The final URL must be http(s) — leading `-` would parse as an option. */
 function curlRoute(route: DownloadRoute, url: string, tmp: string, signal?: AbortSignal): Promise<Buffer> {
   return new Promise((resolve, reject) => {
+    const finalUrl = routeUrl(route, url)
+    if (!isHttpUrl(finalUrl)) {
+      reject(new Error(`refusing non-http(s) download URL: ${finalUrl}`))
+      return
+    }
     const args = [
       '--silent', '--show-error', '--location', '--fail', '--retry', '1',
       '--connect-timeout', '8', '--speed-time', '30', '--speed-limit', '1024', '--max-time', '120',
-      '--user-agent', 'dsh-desktop-plugin', '--output', tmp, routeUrl(route, url),
+      '--user-agent', 'dsh-desktop-plugin', '--output', tmp, finalUrl,
     ]
     if (route.kind === 'proxy') args.push('-x', route.url)
     const child = spawn('curl', args, { stdio: 'ignore', windowsHide: true })
@@ -243,7 +281,11 @@ export function nodeDeps(): InstallerDeps {
     // optional `verify` callback (size/digest from the API) discards any
     // transfer that fails integrity so the next route is tried instead.
     fetchBytes: async (url, signal, verify) => {
-      const tmp = `${process.env.TEMP ?? process.cwd()}\\dsh-desktop-download-${process.pid}-${Date.now()}.exe`
+      // Fixed temp root under os.tmpdir() (never TEMP/cwd-derived): download
+      // scratch files must stay inside a known-safe directory.
+      const tmpBase = path.join(os.tmpdir(), 'dsh-desktop-plugin')
+      fs.mkdirSync(tmpBase, { recursive: true })
+      const tmp = path.join(tmpBase, `download-${process.pid}-${Date.now()}.exe`)
       try {
         let firstError: unknown
         for (const route of await downloadRoutes()) {
@@ -312,7 +354,7 @@ export function pickExeAssetUrl(body: string): string {
  * @returns what happened during this run.
  */
 export async function ensureInstalled(config: ResolvedConfig, deps: InstallerDeps, signal?: AbortSignal): Promise<InstallResult> {
-  const exePath = exePathOf(config)
+  const exePath = ensureWithin(config.installDir, exePathOf(config))
   let downloaded = false
   if (!deps.exists(exePath)) {
     const body = await deps.fetchText(`https://api.github.com/repos/${config.repoSlug}/releases/latest`)
@@ -325,7 +367,7 @@ export async function ensureInstalled(config: ResolvedConfig, deps: InstallerDep
   }
   let shortcut = false
   if (config.createShortcut) {
-    await deps.createShortcut(exePath, config.installDir, config.shortcutName)
+    await deps.createShortcut(exePath, config.installDir, safeFileName(config.shortcutName))
     shortcut = true
   }
   return { exePath, downloaded, shortcut }
@@ -342,14 +384,15 @@ export async function ensureInstalled(config: ResolvedConfig, deps: InstallerDep
 export async function ensureWebShortcut(config: ResolvedConfig, deps: InstallerDeps): Promise<WebShortcutResult> {
   if (!config.createWebShortcut) return { path: '', created: false }
   const desktopDir = await deps.desktopDir()
-  const path = `${desktopDir}\\${config.webShortcutName}.url`
+  const name = safeFileName(config.webShortcutName)
+  const urlPath = ensureWithin(desktopDir, `${desktopDir}\\${name}.url`)
   const lines = ['[InternetShortcut]', `URL=${config.webUrl}`]
   const exePath = exePathOf(config)
   if (deps.exists(exePath)) {
     lines.push(`IconFile=${exePath}`, 'IconIndex=0')
   }
-  deps.writeFile(path, Buffer.from(`${lines.join('\r\n')}\r\n`, 'utf8'))
-  return { path, created: true }
+  deps.writeFile(urlPath, Buffer.from(`${lines.join('\r\n')}\r\n`, 'utf8'))
+  return { path: urlPath, created: true }
 }
 
 /**
@@ -362,7 +405,7 @@ export async function ensureWebShortcut(config: ResolvedConfig, deps: InstallerD
  * @returns what happened during this run.
  */
 export async function ensureUpdated(config: ResolvedConfig, deps: InstallerDeps): Promise<UpdateResult> {
-  const exePath = exePathOf(config)
+  const exePath = ensureWithin(config.installDir, exePathOf(config))
   const none: UpdateResult = { exePath, updated: false, fromVersion: '', toVersion: '' }
   if (!deps.exists(exePath)) return none
   const body = await deps.fetchText(`https://api.github.com/repos/${config.repoSlug}/releases/latest`)

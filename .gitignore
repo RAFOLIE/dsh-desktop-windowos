@@ -30,3 +30,6 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Local security-tool state (Mimosa)
+.mimosa/
