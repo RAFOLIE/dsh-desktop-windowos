@@ -120,10 +120,12 @@ fn dsh_self_update_check(app: AppHandle) {
     update::check_now(app);
 }
 
-/// 更新 tab: latest stable GitHub release tag for the app card.
+/// 更新 tab: latest GitHub release tag for the app card, per channel
+/// (stable=default / dev=prerelease).
 #[tauri::command]
-fn app_latest_stable() -> serde_json::Value {
-    update::app_latest_stable().unwrap_or(serde_json::Value::Null)
+fn app_latest_stable(channel: Option<String>) -> serde_json::Value {
+    update::app_latest_stable(channel.as_deref().unwrap_or("stable"))
+        .unwrap_or(serde_json::Value::Null)
 }
 
 /// 更新 tab「立即更新」(app): runs the real on-demand self-update — check,

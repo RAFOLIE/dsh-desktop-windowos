@@ -37,7 +37,8 @@ DeepSeek Harness(DSH)的 Windows 桌面壳,基于 **Tauri v2 + React 18 + TypeSc
 - **故障自愈与可见性**:DSH 崩溃的真实原因以 ERROR 写入日志并直接显示在启动页错误视图(摘要自动定位到 Error 行而非堆栈尾巴),附手动修复命令——再无静默崩溃循环;缺 profile 包时自动带冷却期旁路补装并重试;`settings.yaml` 被 Web UI 写坏(如 `key:value` 缺空格)时自动备份+修复+round-trip 校验后才落盘;启动链用绝对路径解析 dsh/pnpm,不受 GUI 环境 PATH 影响
 - **DSH 监护自愈**:DSH 意外退出(市场更新自重启/崩溃)时自动重拉并刷新界面,无需人工干预;连续快速崩溃自动熔断报错
 - **自动更新带进度**:更新时顶栏名字旁绿色圆环旋转 → 完成对勾 → **自动重启生效**(无需手动重开;更新只在启动时发生,不打断对话);应用每次启动自检 GitHub 最新 Release,更新通道与自动更新开关见更新中心
-- **更新中心(环境面板第三标签)**:**DeepSeek Harness 卡**管理全局 dsh 包——已安装版本 / npm latest(已是最新或有可用更新徽章)/ npm next 预发布通道 / 上次检查时间,通道下拉选择升级目标后「立即更新」一键完成"停后端 → 全局安装 → 新版本重拉"(会话数据保留);**dsh desktop 卡**管理壳自身——同款版本事实 + **更新通道**(稳定版推荐/预发布版,持久化)与**自动更新开关**(关闭时启动只播报不下载),有新版时「立即更新」点亮,走完整自更新链(下载→完整性校验→换装→自动重启)
+- **更新中心(环境面板第三标签)**:**DeepSeek Harness 卡**管理全局 dsh 包——已安装版本 / npm latest(已是最新或有可用更新徽章)/ npm next 预发布通道 / 上次检查时间,通道下拉选择升级目标后「立即更新」一键完成"停后端 → 全局安装 → 新版本重拉"(会话数据保留);**dsh desktop 卡**管理壳自身——同款版本事实 + **更新通道**(稳定版推荐/预发布版,持久化)与**自动更新开关**(关闭时启动只播报不下载),有新版时「立即更新」点亮,走完整自更新链(下载→完整性校验→换装→自动重启);**最新版本按所选渠道显示**,带 稳定版(绿)/预览版(黄) 徽章
+- **设置中心(环境面板第四标签)**:窗口置顶 / 开机自启(最小化待命) / 关闭按钮行为(隐藏到托盘[默认] 或 直接退出) / 记住上次页签——全部以滑动开关呈现、点击即时生效并跨重启持久化
 - **插件包自动同步(带验真)**:应用启动时自动把已安装的 dsh-desktop-plugin 对齐到 **npm 最新版**(只升不降,带 pnpm 新发布冷却期旁路);安装后回读 node_modules 验证真实落地,pnpm 冷却期静默保留旧版不再虚报成功
 - **图片拖放/粘贴**:与浏览器一致——可拖入或粘贴 png/jpg/webp/gif 作为对话附件(DSH v1 支持的四种格式)
 - **一键重启 DSH**:托盘「重启 dsh web(后端)」只重启 DSH 服务(会话数据在 `~/.dsh` 持久化);「前后端重启」连壳带后端全新拉起(无论后端是谁启动的都会清干净),新装插件随之加载,插件卡死 webchat 时一键满血——面板「更多」里也有同款
@@ -71,7 +72,7 @@ dsh plugin --profile web add dsh-desktop-plugin
 
 重启 DSH 后插件自动把 exe 装到 `%LOCALAPPDATA%\Programs\dsh-desktop-windowos\`,并在桌面生成**两个**快捷方式——「DeepSeek Harness」(桌面应用)和「DeepSeek Harness Web」(浏览器打开前端);之后每次激活还会**自动升级** exe 到最新 Release(应用运行中也能安全替换)。对话里说“打开桌面应用”可通过 `desktop_launch` 工具直接拉起(exe 缺失时走**后台任务安装**,完成后自动启动,聊天里可轮询进度)。首次运行 exe 会弹 SmartScreen(未签名),点「更多信息 → 仍要运行」即可。
 
-**插件 npm 与应用是两条独立版本线**(npm 现 1.5.10,应用现 v1.6.31,不一致是**有意设计**)——npm 只在插件代码变更时发布,内容相同的空包只会触发所有用户的插件市场更新提示与重复下载;应用走 GitHub Release 自由前进,桌面端启动时自动把已装插件对齐 npm 最新版(只升不降)。详见 [plugin/README.md](plugin/README.md)。
+**插件 npm 与应用是两条独立版本线**(npm 现 1.5.10,应用现 v1.6.33,不一致是**有意设计**)——npm 只在插件代码变更时发布,内容相同的空包只会触发所有用户的插件市场更新提示与重复下载;应用走 GitHub Release 自由前进,桌面端启动时自动把已装插件对齐 npm 最新版(只升不降)。详见 [plugin/README.md](plugin/README.md)。
 
 **方式二:直接下载 exe**
 
@@ -175,7 +176,7 @@ Not bundled with the exe:
 dsh plugin --profile web add dsh-desktop-plugin
 ```
 
-After restarting DSH, the plugin auto-installs the exe into `%LOCALAPPDATA%\Programs\dsh-desktop-windowos` and creates **two** desktop shortcuts — "DeepSeek Harness" (the desktop app) and "DeepSeek Harness Web" (the web UI in a browser); each later activation also **auto-updates** the exe to the latest Release (safe even while the app is running). Saying "open the desktop app" in chat launches it via the `desktop_launch` tool (a missing exe installs as a **background job** that auto-launches when done, with progress pollable in chat). First run of the unsigned exe shows SmartScreen — click "More info → Run anyway". **The plugin npm and the app run on two independent version lines** (npm currently 1.5.10, app currently v1.6.31 — the mismatch is deliberate): npm publishes only when the plugin code changes, since identical empty packages would just trigger update prompts and re-downloads for every plugin user; the app advances freely via GitHub Releases, and the desktop app aligns installed plugins to npm latest (upgrade only). See [plugin/README.md](plugin/README.md).
+After restarting DSH, the plugin auto-installs the exe into `%LOCALAPPDATA%\Programs\dsh-desktop-windowos` and creates **two** desktop shortcuts — "DeepSeek Harness" (the desktop app) and "DeepSeek Harness Web" (the web UI in a browser); each later activation also **auto-updates** the exe to the latest Release (safe even while the app is running). Saying "open the desktop app" in chat launches it via the `desktop_launch` tool (a missing exe installs as a **background job** that auto-launches when done, with progress pollable in chat). First run of the unsigned exe shows SmartScreen — click "More info → Run anyway". **The plugin npm and the app run on two independent version lines** (npm currently 1.5.10, app currently v1.6.33 — the mismatch is deliberate): npm publishes only when the plugin code changes, since identical empty packages would just trigger update prompts and re-downloads for every plugin user; the app advances freely via GitHub Releases, and the desktop app aligns installed plugins to npm latest (upgrade only). See [plugin/README.md](plugin/README.md).
 
 **Option B: download the exe directly**
 

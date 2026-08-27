@@ -433,6 +433,7 @@ function UpdateTab({
   const [checking, setChecking] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
   const [appRel, setAppRel] = useState<{ latest?: string; checkedAt?: string } | null>(null);
+  const [appRelSrc, setAppRelSrc] = useState<"stable" | "dev">("stable");
   const [checkingApp, setCheckingApp] = useState(false);
   const [appUpdating, setAppUpdating] = useState(false);
   const [cfg, setCfg] = useState<{ channel: "stable" | "dev"; autoUpdate: boolean } | null>(null);
@@ -452,20 +453,28 @@ function UpdateTab({
     check();
   }, [check]);
 
-  const checkApp = useCallback(() => {
+  const checkApp = useCallback((chan: "stable" | "dev") => {
     setCheckingApp(true);
-    invoke<{ latest?: string; checkedAt?: string }>("app_latest_stable")
-      .then(setAppRel)
+    invoke<{ latest?: string; checkedAt?: string }>("app_latest_stable", { channel: chan })
+      .then((r) => {
+        setAppRel(r);
+        setAppRelSrc(chan);
+      })
       .catch(() => {})
       .finally(() => setCheckingApp(false));
   }, []);
 
   useEffect(() => {
-    checkApp();
+    checkApp("stable");
     invoke<{ channel: "stable" | "dev"; autoUpdate: boolean }>("app_get_update_config")
       .then(setCfg)
       .catch(() => {});
   }, [checkApp]);
+
+  // Config arrives async; when dev is configured, refetch that channel's latest.
+  useEffect(() => {
+    if (cfg?.channel === "dev") checkApp("dev");
+  }, [cfg?.channel, checkApp]);
 
   // Persist a pref change; the new value drives the next startup check.
   const saveCfg = (patch: { channel?: "stable" | "dev"; autoUpdate?: boolean }) => {
@@ -476,7 +485,10 @@ function UpdateTab({
     };
     setSavingCfg(true);
     invoke("app_set_update_config", { channel: next.channel, autoUpdate: next.autoUpdate })
-      .then(() => setCfg(next))
+      .then(() => {
+        setCfg(next);
+        if (patch.channel !== undefined && patch.channel !== cfg.channel) checkApp(next.channel);
+      })
       .catch(() => {})
       .finally(() => setSavingCfg(false));
   };
@@ -573,9 +585,15 @@ function UpdateTab({
           <div className="ep-row">
             <div className="ep-row-label">最新版本</div>
             <div className={`ep-row-value mono${appRel?.latest ? " link" : ""}`}>
-              {appRel?.latest ?? "检测中…"}
-              {info?.app?.version && appRel?.latest && verCmp(appRel.latest, info.app.version) <= 0 && (
-                <span className="ep-badge ok">已是最新</span>
+              {appRel?.latest ? (
+                <>
+                  <span className={`ep-badge ${appRelSrc === "dev" ? "warn" : "ok"}`}>
+                    {appRelSrc === "dev" ? "预览版" : "稳定版"}
+                  </span>
+                  {appRel.latest}
+                </>
+              ) : (
+                "检测中…"
               )}
             </div>
             <div className="ep-row-actions" />
@@ -584,7 +602,12 @@ function UpdateTab({
             <div className="ep-row-label">上次检查</div>
             <div className="ep-row-value">{relativeStamp(appRel?.checkedAt)}</div>
             <div className="ep-row-actions">
-              <button type="button" className="ep-tool-btn" disabled={checkingApp} onClick={checkApp}>
+              <button
+                type="button"
+                className="ep-tool-btn"
+                disabled={checkingApp}
+                onClick={() => checkApp(cfg?.channel === "dev" ? "dev" : "stable")}
+              >
                 {checkingApp ? "检测中…" : "检查"}
               </button>
             </div>
@@ -607,13 +630,13 @@ function UpdateTab({
             </span>
             <button
               type="button"
-              className={`ep-pill${cfg?.autoUpdate ? " active" : ""}`}
-              aria-pressed={cfg?.autoUpdate}
+              className={`ep-switch${cfg?.autoUpdate ? " on" : ""}`}
+              role="switch"
+              aria-checked={cfg?.autoUpdate ?? true}
+              aria-label="自动更新"
               disabled={savingCfg}
               onClick={() => saveCfg({ autoUpdate: !(cfg?.autoUpdate ?? true) })}
-            >
-              自动更新:{cfg?.autoUpdate === false ? "关" : "开"}
-            </button>
+            />
           </div>
         </div>
 
@@ -683,23 +706,22 @@ function PrefRow({
       <div className="ep-row-actions">
         <button
           type="button"
-          className={`ep-pill${active ? " active" : ""}`}
-          aria-pressed={active}
+          className={`ep-switch${active ? " on" : ""}`}
+          role="switch"
+          aria-checked={active}
+          aria-label={label}
           disabled={disabled}
           onClick={onToggle}
-        >
-          {active ? "开" : "关"}
-        </button>
+        />
       </div>
     </div>
   );
 }
 
-/** 设置 tab, Comfy-Desktop-style:窗口行为 + 面板偏好 + 关于,全部即时保存。
+/** 设置 tab, Comfy-Desktop-style:窗口行为 + 面板偏好,全部即时保存。
  *  更新通道/自动更新刻意不在此页——归「更新」tab,避免同一配置两处入口。 */
-function SettingsTab({ info, currentTab }: { info: EnvInfo | null; currentTab: Tab }) {
+function SettingsTab({ currentTab }: { currentTab: Tab }) {
   const [cfg, setCfg] = useState<ShellSettings | null>(null);
-  const [dataDir, setDataDir] = useState<string | null>(null);
   const [rememberTab, setRememberTab] = useState<boolean>(
     () => localStorage.getItem("epRememberTab") !== "0",
   );
@@ -710,7 +732,6 @@ function SettingsTab({ info, currentTab }: { info: EnvInfo | null; currentTab: T
       closeAction?: string;
       alwaysOnTop?: boolean;
       autostart?: boolean;
-      appDataDir?: string | null;
     }>("app_get_shell_settings")
       .then((r) => {
         setCfg({
@@ -718,7 +739,6 @@ function SettingsTab({ info, currentTab }: { info: EnvInfo | null; currentTab: T
           alwaysOnTop: r.alwaysOnTop === true,
           autostart: r.autostart === true,
         });
-        setDataDir(r.appDataDir ?? null);
       })
       .catch(() => {});
   }, []);
@@ -798,37 +818,6 @@ function SettingsTab({ info, currentTab }: { info: EnvInfo | null; currentTab: T
             active={rememberTab}
             onToggle={saveRememberTab}
           />
-        </div>
-      </section>
-
-      <section className="ep-group">
-        <div className="ep-group-title">关于</div>
-        <div className="ep-card">
-          <div className="ep-row">
-            <div className="ep-row-label">当前版本</div>
-            <div className="ep-row-value mono">
-              {info?.app?.version ? `v${info.app.version}` : "检测中…"}
-            </div>
-            <div className="ep-row-actions" />
-          </div>
-          <div className="ep-row">
-            <div className="ep-row-label">更新偏好</div>
-            <div className="ep-row-value">更新通道与自动更新开关在「更新」页签</div>
-            <div className="ep-row-actions" />
-          </div>
-          <div className="ep-row">
-            <div className="ep-row-label">应用数据目录</div>
-            <div className={`ep-row-value mono${dataDir ? "" : " absent"}`}>
-              {dataDir ?? "未检测到"}
-            </div>
-            <div className="ep-row-actions">
-              {dataDir !== null && (
-                <IconButton label="打开目录" onClick={() => invoke("open_path", { path: dataDir }).catch(() => {})}>
-                  {FolderIcon}
-                </IconButton>
-              )}
-            </div>
-          </div>
         </div>
       </section>
     </div>
@@ -1173,7 +1162,7 @@ export default function EnvPanel({
                   onBackendUpgraded={onRefresh}
                 />
               )}
-              {tab === "settings" && <SettingsTab info={info} currentTab={tab} />}
+              {tab === "settings" && <SettingsTab currentTab={tab} />}
             </div>
           </div>
         </div>

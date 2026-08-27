@@ -433,6 +433,51 @@ input:focus-visible {
   color: #4c9aff;
 }
 
+/* Codex-style slide switch (pref rows / auto-update). Full-state lock:
+   the bare `button`/`button:hover` rules above would otherwise bleed in. */
+.ep-switch {
+  position: relative;
+  flex: none;
+  width: 42px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  transition: background 0.18s ease;
+}
+
+.ep-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.18s ease;
+}
+
+.ep-switch:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.ep-switch.on,
+.ep-switch.on:hover {
+  background: #4c9aff;
+}
+
+.ep-switch.on::after {
+  transform: translateX(18px);
+}
+
+.ep-switch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* Text tool buttons (log toolbar etc.). */
 .ep-tool-btn {
   height: 32px;
@@ -875,6 +920,12 @@ input:focus-visible {
 .ep-badge.warn {
   border-color: #f2a93b66;
   color: #f2a93b;
+}
+
+/* Channel badge leads the value: 稳定版(ok) / 预览版(warn). */
+.ep-row-value .ep-badge {
+  margin-left: 0;
+  margin-right: 8px;
 }
 
 .ep-upgrade-row {

@@ -678,13 +678,34 @@ fn app_set_update_config(channel: Option<String>, autoUpdate: Option<bool>) {
     ));
 }
 
-/// Latest stable release tag for the 更新 tab's app card (same GitHub
-/// endpoint the auto-updater uses). No asset needed — just the tag + time.
-pub fn app_latest_stable() -> Option<Value> {
-    let api_url = format!("https://api.github.com/repos/{REPO_SLUG}/releases/latest");
-    let body = api_get_json(&api_url)?;
+/// Latest release tag for the 更新 tab's app card, resolved per channel with
+/// the same GitHub endpoints the auto-updater uses: "stable" hits
+/// /releases/latest; "dev" takes the newest non-draft release from the list
+/// endpoint (prereleases included). No asset needed — just the tag + time.
+pub fn app_latest_stable(channel: &str) -> Option<Value> {
+    let tag = if channel == "dev" {
+        let list = api_get_json(&format!(
+            "https://api.github.com/repos/{REPO_SLUG}/releases?per_page=10"
+        ))?;
+        let first_live = list
+            .as_array()?
+            .iter()
+            .find(|rel| !rel["draft"].as_bool().unwrap_or(true))
+            .cloned()?;
+        first_live["tag_name"]
+            .as_str()?
+            .trim_start_matches('v')
+            .to_string()
+    } else {
+        api_get_json(&format!(
+            "https://api.github.com/repos/{REPO_SLUG}/releases/latest"
+        ))?["tag_name"]
+            .as_str()?
+            .trim_start_matches('v')
+            .to_string()
+    };
     Some(json!({
-        "latest": body["tag_name"].as_str()?.trim_start_matches('v').to_string(),
+        "latest": tag,
         "checkedAt": now_stamp(),
     }))
 }
