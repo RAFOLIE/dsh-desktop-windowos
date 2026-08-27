@@ -60,6 +60,79 @@ function Toast({ message }: { message: string | null }) {
   return <div className="ep-toast">{message}</div>;
 }
 
+/** Clickable "?" help badge: hover shows the native title tooltip, click
+ *  toggles a persistent popover with the same text (fixed-position portal —
+ *  immune to card overflow clipping, same pattern as ChannelPicker). */
+function HelpHint({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  const toggle = () => {
+    setOpen((o) => {
+      if (!o && ref.current) {
+        const r = ref.current.getBoundingClientRect();
+        const center = r.left + r.width / 2;
+        setPos({
+          left: Math.min(Math.max(center, 170), window.innerWidth - 170),
+          top: r.bottom + 8,
+        });
+      }
+      return !o;
+    });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    const onDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!ref.current?.contains(target) && !target.closest(".ep-help-pop")) {
+        setOpen(false);
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [open]);
+
+  return (
+    <span ref={ref} className="ep-help-wrap">
+      <span
+        className={`ep-help${open ? " open" : ""}`}
+        role="button"
+        aria-label={text}
+        title={text}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggle();
+        }}
+      >
+        ?
+      </span>
+      {open &&
+        pos !== null &&
+        createPortal(
+          <div
+            className="ep-help-pop"
+            style={{ position: "fixed", left: pos.left, top: pos.top }}
+          >
+            {text}
+          </div>,
+          document.body,
+        )}
+    </span>
+  );
+}
+
 /** 30px icon button (copy / open dir), weak by default, framed on hover. */
 function IconButton({
   label,
@@ -563,7 +636,7 @@ function UpdateTab({
         <div className="ep-card ep-channel-card">
           <div className="ep-channel-title">
             {t("upd.channelTitle")}
-            <span className="ep-help" title={t("upd.channelHelpBackend")}>?</span>
+            <HelpHint text={t("upd.channelHelpBackend")} />
           </div>
           <ChannelPicker value={channel} onChange={(id) => setChannel(id as Channel)} options={backendChannels(t)} />
           <div className="ep-upgrade-row">
@@ -627,7 +700,7 @@ function UpdateTab({
         <div className="ep-card ep-channel-card">
           <div className="ep-channel-title">
             {t("upd.channelTitle")}
-            <span className="ep-help" title={t("upd.channelHelpApp")}>?</span>
+            <HelpHint text={t("upd.channelHelpApp")} />
           </div>
           <ChannelPicker
             value={cfg?.channel ?? "stable"}
@@ -718,7 +791,7 @@ function PrefRow({
       <div className="ep-row-label">
         {label}
         {help && (
-          <span className="ep-help" title={help}>?</span>
+          <HelpHint text={help} />
         )}
       </div>
       <div className="ep-row-value" />
@@ -817,7 +890,7 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
           <div className="ep-row">
             <div className="ep-row-label">
               {t("set.theme")}
-              <span className="ep-help" title={t("set.themeDesc")}>?</span>
+              <HelpHint text={t("set.themeDesc")} />
             </div>
             <div className="ep-row-value" />
             <div className="ep-row-actions">
@@ -841,7 +914,7 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
           <div className="ep-row">
             <div className="ep-row-label">
               {t("set.language")}
-              <span className="ep-help" title={t("set.langDesc")}>?</span>
+              <HelpHint text={t("set.langDesc")} />
             </div>
             <div className="ep-row-value" />
             <div className="ep-row-actions">
@@ -884,7 +957,7 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
         <div className="ep-card ep-channel-card">
           <div className="ep-channel-title">
             {t("set.closeAction")}
-            <span className="ep-help" title={t("set.closeActionHelp")}>?</span>
+            <HelpHint text={t("set.closeActionHelp")} />
           </div>
           <ChannelPicker
             value={cfg?.closeAction ?? "tray"}

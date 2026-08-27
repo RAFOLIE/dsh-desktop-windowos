@@ -504,6 +504,37 @@ input:focus-visible {
   color: #4c9aff;
 }
 
+.ep-help-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.ep-help.open {
+  border-color: #4c9aff;
+  color: #4c9aff;
+  background: rgba(76, 154, 255, 0.12);
+}
+
+/* Click-toggled help popover (fixed portal, never clipped by cards). */
+.ep-help-pop {
+  min-width: 180px;
+  max-width: 320px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #1b1f2a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  color: #e7eaf0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  z-index: 3100;
+  pointer-events: auto;
+}
+
 /* Text tool buttons (log toolbar etc.). */
 .ep-tool-btn {
   height: 32px;
@@ -1346,6 +1377,19 @@ input:focus-visible {
 [data-theme="light"] .ep-help:hover {
   border-color: #2b6fe0;
   color: #2b6fe0;
+}
+
+[data-theme="light"] .ep-help.open {
+  border-color: #2b6fe0;
+  color: #2b6fe0;
+  background: #eaf1fe;
+}
+
+[data-theme="light"] .ep-help-pop {
+  background: #ffffff;
+  border-color: #e6e6e8;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.14);
+  color: #191b1f;
 }
 
 [data-theme="light"] .ep-tab {
