@@ -77,6 +77,35 @@ fn app_full_restart(app: AppHandle) {
     update::restart_app(&app);
 }
 
+/// 更新 tab: npm dist-tags (latest/next) for @deepseek-ai/dsh.
+#[tauri::command]
+fn dsh_npm_channels() -> serde_json::Value {
+    update::dsh_npm_channels().unwrap_or(serde_json::Value::Null)
+}
+
+/// 更新 tab「检查应用更新」: same as the tray check — narrated with toasts.
+#[tauri::command]
+fn dsh_self_update_check(app: AppHandle) {
+    update::check_now(app);
+}
+
+/// 更新 tab「升级」: global dsh -> npm latest. High-impact: stops the
+/// backend around the install and lets supervision/startup re-run it.
+#[tauri::command]
+fn dsh_backend_upgrade(app: AppHandle) -> Result<String, String> {
+    dsh::stop_backend(&app);
+    let stamp = update::upgrade_backend()?;
+    // Bring the backend back on the fresh version via the normal chain.
+    std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while dsh::probe_ready_once() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        dsh::startup(app.clone());
+    });
+    Ok(stamp)
+}
+
 /// One-paste AI context: env facts + this session's log as a markdown
 /// bundle, saved beside the log and returned so the panel can also put it
 /// on the clipboard. Solves "AI has to hunt through the whole DSH install".
@@ -288,7 +317,7 @@ pub fn run() {    tauri::Builder::default()
         }))
         .plugin(tauri_plugin_opener::init())
         .manage(dsh::DshState::new())
-        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
+        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_upgrade, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
         .setup(|app| {
             // Session-start log rotation (ComfyUI-style) before anything logs
             // or spawns: previous session archived under a timestamped name.

@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.6.12 — 2026-08-27 【开发版/预发布】
+
+新增:环境面板第三个标签「**更新**」(对标 Comfy Desktop 更新页)。
+
+- **DSH 后端卡**:已安装版本 / npm latest(带「已是最新/有可用更新」徽章) / npm next(rc 预发布通道) / 上次检查时间 + 检查按钮;「立即升级」= 全局 npm i -g @deepseek-ai/dsh@latest(带确认框,自动停后端→装→按启动链重拉新版本,会话保留)
+- **DeepSeek Harness 卡**:已安装版本 + 更新机制说明;「检查应用更新」= 托盘同款手动检查
+- 新命令 dsh_npm_channels / dsh_backend_upgrade / dsh_self_update_check;后端版本来自 v1.6.10 的进程命令行解析
+
+Feature: an 更新 tab in the env panel (Comfy-style): the running dsh backend vs npm latest/next channels with one-click upgrade (confirmed, backend restarts onto the fresh version), and the shell itself against GitHub Releases.
+
 ## v1.6.11 — 2026-08-25 【开发版/预发布】
 
 修复:**--no-open 探测无超时,可堵死整个启动链**。DSH 0.1.1-rc.2 的 `web --help` 打印完帮助后不退出(boot 路径会拉起后台加载器),探测 `command.output()` 无限等待——实机表现:应用停在启动页,唯一子进程是赖着的 help,永无候选尝试(08-25 晚实抓)。

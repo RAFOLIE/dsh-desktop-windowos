@@ -421,6 +421,8 @@ fn run_check(app: &AppHandle, on_demand: bool) -> Result<(), String> {
 }
 
 /// Append one line to the shared shell log beside the exe updater's output.
+use serde_json::Value;
+
 /// Routes through dsh's timestamped writer so the log tab colors uniformly;
 /// the `[dsh-desktop] ` prefix stays as the source tag.
 fn log_line(line: &str) {
@@ -591,6 +593,41 @@ fn sync_plugin_packages() {
                 log_line("[dsh-desktop] plugin sync skipped: no dsh CLI found outside DSH_CMD");
             }
         }
+    }
+}
+
+/// npm dist-tags for @deepseek-ai/dsh (latest / next) — the env panel's
+/// 更新 tab shows both channels (stable vs rc) Comfy-style.
+pub fn dsh_npm_channels() -> Option<Value> {
+    let response = ureq::get("https://registry.npmjs.org/@deepseek-ai/dsh")
+        .set("Accept", "application/vnd.npm.install-v1+json")
+        .timeout(Duration::from_secs(8))
+        .call()
+        .ok()?;
+    let doc = response.into_json::<Value>().ok()?;
+    let latest = doc["dist-tags"]["latest"].as_str()?.to_string();
+    let next = doc["dist-tags"]["next"].as_str().map(str::to_string);
+    Some(json!({ "latest": latest, "next": next, "checkedAt": now_stamp() }))
+}
+
+pub(crate) fn now_stamp() -> String {
+    let (date, time, _) = crate::dsh::local_time_parts();
+    format!("{date} {time}")
+}
+
+/// Upgrade the global dsh package to npm `latest` via the same bounded,
+/// windowless runner used elsewhere. The frontend stops/restarts the backend
+/// around this; if that didn't happen we clear 3080 ourselves afterwards so
+/// a stale pre-upgrade server can't keep serving.
+pub fn upgrade_backend() -> Result<String, String> {
+    let npm = crate::dsh::where_first("npm")
+        .ok_or_else(|| "未找到 npm(需要已安装 Node.js)".to_string())?;
+    let cmd = format!("\"{}\" install -g @deepseek-ai/dsh@latest", npm);
+    let ok = crate::dsh::run_bounded(&cmd, Duration::from_secs(600), "dsh backend upgrade");
+    if ok {
+        Ok(now_stamp())
+    } else {
+        Err("升级失败——详见日志标签页".to_string())
     }
 }
 

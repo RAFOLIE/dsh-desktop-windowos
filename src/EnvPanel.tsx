@@ -26,11 +26,12 @@ export type EnvInfo = {
 };
 
 /** Which detail tab is active. */
-type Tab = "env" | "log";
+type Tab = "env" | "log" | "update";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "env", label: "环境" },
   { id: "log", label: "日志" },
+  { id: "update", label: "更新" },
 ];
 
 function formatBytes(bytes: number | null | undefined): string {
@@ -267,6 +268,139 @@ function LogViewer({ onCopy }: { onCopy: (text: string, note: string) => void })
           </span>
         ))}
       </pre>
+    </div>
+  );
+}
+
+/** Channels payload from dsh_npm_channels. */
+type DshChannels = { latest?: string; next?: string | null; checkedAt?: string };
+
+/** 更新 tab: Comfy-Desktop-style version cards — the running dsh backend
+ *  against npm's latest/next channels, and the shell itself against GitHub
+ *  Releases. Every action is real; nothing pretends. */
+function UpdateTab({
+  info,
+  backendVersion,
+  onBackendUpgraded,
+}: {
+  info: EnvInfo | null;
+  backendVersion: string;
+  onBackendUpgraded: () => void;
+}) {
+  const [channels, setChannels] = useState<DshChannels | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const check = useCallback(() => {
+    setChecking(true);
+    invoke<DshChannels>("dsh_npm_channels")
+      .then(setChannels)
+      .catch(() => {})
+      .finally(() => setChecking(false));
+  }, []);
+
+  useEffect(() => {
+    check();
+  }, [check]);
+
+  const upgrade = () => {
+    if (!window.confirm("升级全局 dsh 到 npm latest?会重启 DSH 后端(会话数据保留)")) return;
+    setUpgrading(true);
+    setNote(null);
+    invoke<string>("dsh_backend_upgrade")
+      .then((stamp) => {
+        setNote(`升级完成(${stamp}),后端已按新版本重启`);
+        check();
+        onBackendUpgraded();
+      })
+      .catch(() => setNote("升级失败,详见日志"))
+      .finally(() => setUpgrading(false));
+  };
+
+  const cur = backendVersion === "" ? "未检测到" : backendVersion;
+  const aheadOf = (tag: string) => {
+    if (backendVersion === "" || !tag) return false;
+    return backendVersion.split("+")[0].replace(/^v/, "") >= tag.replace(/^v/, "");
+  };
+  const relToLatest = channels?.latest
+    ? aheadOf(channels.latest)
+      ? "已是最新"
+      : "有可用更新"
+    : null;
+
+  return (
+    <div className="ep-content-inner">
+      <section className="ep-group">
+        <div className="ep-group-title">DSH 后端</div>
+        <div className="ep-card">
+          <div className="ep-row">
+            <div className="ep-row-label">已安装版本</div>
+            <div className="ep-row-value mono">{cur}</div>
+            <div className="ep-row-actions" />
+          </div>
+          <div className="ep-row">
+            <div className="ep-row-label">npm latest</div>
+            <div className={`ep-row-value mono${relToLatest === "有可用更新" ? " update-available" : ""}`}>
+              {channels?.latest ?? "检测中…"}
+              {relToLatest && (
+                <span className={relToLatest === "有可用更新" ? "ep-badge warn" : "ep-badge ok"}>{relToLatest}</span>
+              )}
+            </div>
+            <div className="ep-row-actions" />
+          </div>
+          <div className="ep-row">
+            <div className="ep-row-label">npm next(rc 预发布)</div>
+            <div className="ep-row-value mono">{channels?.next ?? "未发布"}</div>
+            <div className="ep-row-actions" />
+          </div>
+          <div className="ep-row">
+            <div className="ep-row-label">上次检查</div>
+            <div className="ep-row-value">{channels?.checkedAt ?? "—"}</div>
+            <div className="ep-row-actions">
+              <button type="button" className="ep-tool-btn" disabled={checking} onClick={check}>
+                {checking ? "检测中…" : "检查"}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="ep-upgrade-row">
+          <span className="ep-hint-inline">
+            升级到 npm latest 会全局安装并重启 DSH 后端(会话数据在 ~/.dsh 保留)
+          </span>
+          <button type="button" className="ep-primary" disabled={upgrading || channels?.latest == null} onClick={upgrade}>
+            {upgrading ? "升级中…(约 1 分钟)" : channels?.latest == null ? "检查后可升级" : "立即升级"}
+          </button>
+        </div>
+        {note !== null && <div className="detail">{note}</div>}
+      </section>
+
+      <section className="ep-group">
+        <div className="ep-group-title">DeepSeek Harness(本应用)</div>
+        <div className="ep-card">
+          <div className="ep-row">
+            <div className="ep-row-label">已安装版本</div>
+            <div className="ep-row-value mono">{info?.app?.version ?? "未检测到"}</div>
+            <div className="ep-row-actions" />
+          </div>
+          <div className="ep-row">
+            <div className="ep-row-label">更新机制</div>
+            <div className="ep-row-value">启动时自动检查并安装稳定版(latest);圆环→对勾→自动重启</div>
+            <div className="ep-row-actions" />
+          </div>
+        </div>
+        <div className="ep-upgrade-row">
+          <span className="ep-hint-inline">应用更新由壳全自动完成;预发布(开发版)不出现在自动更新里</span>
+          <button
+            type="button"
+            className="ep-secondary"
+            disabled={upgrading}
+            onClick={() => invoke("dsh_self_update_check").catch(() => {})}
+          >
+            检查应用更新
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
@@ -528,8 +662,14 @@ export default function EnvPanel({
                     )}
                   </div>
                 )
-              ) : (
-                <LogViewer onCopy={copy} />
+              ) : null}
+              {tab === "log" && <LogViewer onCopy={copy} />}
+              {tab === "update" && (
+                <UpdateTab
+                  info={info}
+                  backendVersion={dsh?.webVersion ?? ""}
+                  onBackendUpgraded={onRefresh}
+                />
               )}
             </div>
           </div>

@@ -334,7 +334,7 @@ fn custom_dsh_path() -> Option<String> {
 
 /// Probe 3080 once with a real `host.describe` RPC; true if DSH answers healthy.
 /// A plain TCP connect is not enough — an open port is not necessarily DSH.
-fn probe_ready_once() -> bool {
+pub(crate) fn probe_ready_once() -> bool {
     let body = json!({
         "type": "client-request",
         "rpcId": Uuid::new_v4().to_string(),
@@ -807,7 +807,7 @@ fn pnpm_path() -> Option<PathBuf> {
 
 /// Run one hidden shell command with a hard kill at the cap (repairs can be
 /// big installs; nothing downstream may stall on them).
-fn run_bounded(cmd: &str, cap: Duration, what: &str) -> bool {
+pub(crate) fn run_bounded(cmd: &str, cap: Duration, what: &str) -> bool {
     let mut command = Command::new("cmd");
     #[cfg(windows)]
     {
@@ -961,7 +961,7 @@ fn supervision_warn(line: &str) {
 }
 
 /// First `where <name>` hit, windowless.
-fn where_first(name: &str) -> Option<String> {
+pub(crate) fn where_first(name: &str) -> Option<String> {
     let mut command = Command::new("where");
     command.arg(name);
     apply_no_window(&mut command);

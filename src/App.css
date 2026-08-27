@@ -802,3 +802,41 @@ input:focus-visible {
     order: 3;
   }
 }
+
+/* --- 更新 tab extras --- */
+
+.ep-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10px;
+  padding: 1px 8px;
+  font-size: 11px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  vertical-align: middle;
+}
+
+.ep-badge.ok {
+  border-color: #43c98b66;
+  color: #43c98b;
+}
+
+.ep-badge.warn {
+  border-color: #f2a93b66;
+  color: #f2a93b;
+}
+
+.ep-upgrade-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.ep-hint-inline {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: #8b949e;
+}
