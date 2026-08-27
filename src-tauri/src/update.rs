@@ -615,19 +615,24 @@ pub(crate) fn now_stamp() -> String {
     format!("{date} {time}")
 }
 
-/// Upgrade the global dsh package to npm `latest` via the same bounded,
-/// windowless runner used elsewhere. The frontend stops/restarts the backend
-/// around this; if that didn't happen we clear 3080 ourselves afterwards so
-/// a stale pre-upgrade server can't keep serving.
-pub fn upgrade_backend() -> Result<String, String> {
+/// Upgrade the global dsh package via the same bounded, windowless runner
+/// used elsewhere. `channel` selects the npm dist-tag: "latest" (stable,
+/// recommended) or "next" (rc prerelease). The frontend stops/restarts the
+/// backend around this; afterwards we clear 3080 ourselves so a stale
+/// pre-upgrade server can't keep serving.
+pub fn upgrade_backend(channel: Option<String>) -> Result<String, String> {
+    let tag = match channel.as_deref() {
+        Some("next") => "next",
+        _ => "latest",
+    };
     let npm = crate::dsh::where_first("npm")
         .ok_or_else(|| "未找到 npm(需要已安装 Node.js)".to_string())?;
-    let cmd = format!("\"{}\" install -g @deepseek-ai/dsh@latest", npm);
+    let cmd = format!("\"{}\" install -g @deepseek-ai/dsh@{}", npm, tag);
     let ok = crate::dsh::run_bounded(&cmd, Duration::from_secs(600), "dsh backend upgrade");
     if ok {
         Ok(now_stamp())
     } else {
-        Err("升级失败——详见日志标签页".to_string())
+        Err(format!("升级到 {} 失败——详见日志标签页", tag))
     }
 }
 

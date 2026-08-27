@@ -92,9 +92,9 @@ fn dsh_self_update_check(app: AppHandle) {
 /// 更新 tab「升级」: global dsh -> npm latest. High-impact: stops the
 /// backend around the install and lets supervision/startup re-run it.
 #[tauri::command]
-fn dsh_backend_upgrade(app: AppHandle) -> Result<String, String> {
+fn dsh_backend_upgrade(app: AppHandle, channel: Option<String>) -> Result<String, String> {
     dsh::stop_backend(&app);
-    let stamp = update::upgrade_backend()?;
+    let stamp = update::upgrade_backend(channel)?;
     // Bring the backend back on the fresh version via the normal chain.
     std::thread::spawn(move || {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);

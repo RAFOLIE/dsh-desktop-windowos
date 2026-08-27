@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.6.13 — 2026-08-27 【开发版/预发布】
+
+重构:「更新」标签页对标 Comfy Desktop 更新页的版式与交互。
+
+- **大标题行**:「DSH 后端 <蓝色版本号> + 有可用更新徽章」压在卡片上方;「DeepSeek Harness」同款
+- **三行事实卡**:已安装版本 / 最新版本(蓝色) / 上次检查(相对时间「刚刚/N 分钟前/N 小时前」)
+- **更新通道下拉框**(两行选项带描述与勾选标记):npm latest — 推荐(稳定通道)/ npm next — 预发布(rc 候选);闭合态显示当前选择,下方随选择变化说明文字
+- **按钮对**:「复制并更新」(复制 npm 安装命令到剪贴板 + 执行升级)与「立即更新」;升级走所选通道(latest/next),确认后停后端→装→重拉
+- dsh_backend_upgrade 增加 channel 参数
+
+Rework: the 更新 tab now mirrors Comfy Desktop's update page layout and interactions (big version heading, relative last-check stamp, channel dropdown with descriptions, copy-and-update/update-now pair).
+
 ## v1.6.12 — 2026-08-27 【开发版/预发布】
 
 新增:环境面板第三个标签「**更新**」(对标 Comfy Desktop 更新页)。

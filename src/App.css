@@ -840,3 +840,134 @@ input:focus-visible {
   font-size: 12px;
   color: #8b949e;
 }
+
+/* --- 更新 tab: Comfy-style heading + channel selector --- */
+
+.ep-version-heading {
+  font-size: 22px;
+  font-weight: 700;
+  color: #e7eaf0;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ep-version-num {
+  color: #4c9aff;
+}
+
+.ep-channel-card {
+  margin-top: 16px;
+  padding-bottom: 14px;
+}
+
+.ep-channel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #969dab;
+}
+
+.ep-select-wrap {
+  position: relative;
+  margin: 0 18px;
+}
+
+.ep-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 46px;
+  padding: 0 16px;
+  font-size: 14px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #e7eaf0;
+}
+
+.ep-select:hover:not(:disabled) {
+  border-color: rgba(76, 154, 255, 0.5);
+}
+
+.ep-select.open {
+  border-color: #4c9aff;
+}
+
+.ep-select svg {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  color: #969dab;
+  transition: transform 0.15s ease;
+}
+
+.ep-select.open svg {
+  transform: rotate(180deg);
+}
+
+.ep-select-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 8;
+  padding: 6px;
+  background: #1b1f2a;
+  border: 1px solid rgba(76, 154, 255, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.ep-select-option {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 10px 40px 10px 14px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+}
+
+.ep-select-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ep-select-option.selected {
+  background: rgba(76, 154, 255, 0.12);
+}
+
+.ep-select-title {
+  display: block;
+  font-size: 14px;
+  color: #e7eaf0;
+}
+
+.ep-select-desc {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: #969dab;
+}
+
+.ep-select-check {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+}
+
+.ep-select-desc-below {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #969dab;
+}
