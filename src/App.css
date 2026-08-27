@@ -1063,3 +1063,15 @@ input:focus-visible {
   align-items: center;
   justify-content: center;
 }
+
+/* grey variant shares the seamless split look */
+.ep-split .ep-secondary.ep-split-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.ep-split .ep-split-caret {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: none;
+}

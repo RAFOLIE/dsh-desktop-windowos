@@ -1010,8 +1010,8 @@ export default function EnvPanel({
             )}
           </div>
           <div className="ep-more" ref={moreRef}>
-            <div className="ep-split ep-split-secondary">
-              <button type="button" className="ep-secondary" onClick={() => setMoreOpen((o) => !o)}>
+            <div className="ep-split">
+              <button type="button" className="ep-secondary ep-split-main" onClick={() => setMoreOpen((o) => !o)}>
                 更多
               </button>
               <button
