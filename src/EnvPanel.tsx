@@ -1010,9 +1010,20 @@ export default function EnvPanel({
             )}
           </div>
           <div className="ep-more" ref={moreRef}>
-            <button type="button" className="ep-secondary" onClick={() => setMoreOpen((o) => !o)}>
-              更多 ⌃
-            </button>
+            <div className="ep-split ep-split-secondary">
+              <button type="button" className="ep-secondary" onClick={() => setMoreOpen((o) => !o)}>
+                更多
+              </button>
+              <button
+                type="button"
+                className="ep-secondary ep-split-caret"
+                aria-haspopup="menu"
+                aria-expanded={moreOpen}
+                onClick={() => setMoreOpen((o) => !o)}
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 6.5 5 2.5 9 6.5" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
+              </button>
+            </div>
               {moreOpen && (
                 <div className="ep-menu" role="menu">
                   <button
