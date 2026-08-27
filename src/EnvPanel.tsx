@@ -289,6 +289,16 @@ function relativeStamp(stamp: string | undefined): string {
   return `${Math.round(hours / 24)} 天前`;
 }
 
+/** Loose numeric semver compare ("1.6.17" vs "v1.6.11") — enough for tags. */
+function verCmp(a: string, b: string): number {
+  const pa = a.replace(/^v/, "").split(/[.+\-]/).map((x) => parseInt(x, 10) || 0);
+  const pb = b.replace(/^v/, "").split(/[.+\-]/).map((x) => parseInt(x, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) - (pb[i] ?? 0);
+  }
+  return 0;
+}
+
 type Channel = "latest" | "next";
 
 const CHANNELS: { id: Channel; title: string; desc: string }[] = [
@@ -310,6 +320,9 @@ function UpdateTab({
   const [channels, setChannels] = useState<DshChannels | null>(null);
   const [checking, setChecking] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
+  const [appRel, setAppRel] = useState<{ latest?: string; checkedAt?: string } | null>(null);
+  const [checkingApp, setCheckingApp] = useState(false);
+  const [appUpdating, setAppUpdating] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [channel, setChannel] = useState<Channel>("latest");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -327,6 +340,18 @@ function UpdateTab({
   useEffect(() => {
     check();
   }, [check]);
+
+  const checkApp = useCallback(() => {
+    setCheckingApp(true);
+    invoke<{ latest?: string; checkedAt?: string }>("app_latest_stable")
+      .then(setAppRel)
+      .catch(() => {})
+      .finally(() => setCheckingApp(false));
+  }, []);
+
+  useEffect(() => {
+    checkApp();
+  }, [checkApp]);
 
 
   const installed = backendVersion === "" ? null : backendVersion.replace(/^v/, "");
@@ -490,6 +515,9 @@ function UpdateTab({
         <div className="ep-version-heading">
           {"DeepSeek Harness "}
           {info?.app?.version && <span className="ep-version-num">v{info.app.version}</span>}
+          {info?.app?.version && appRel?.latest && verCmp(appRel.latest, info.app.version) > 0 && (
+            <span className="ep-badge warn">有可用更新</span>
+          )}
         </div>
         <div className="ep-card">
           <div className="ep-row">
@@ -498,20 +526,49 @@ function UpdateTab({
             <div className="ep-row-actions" />
           </div>
           <div className="ep-row">
-            <div className="ep-row-label">更新机制</div>
-            <div className="ep-row-value">启动时自动检查并安装稳定版(latest);圆环→对勾→自动重启</div>
+            <div className="ep-row-label">最新版本</div>
+            <div className={`ep-row-value mono${appRel?.latest ? " link" : ""}`}>
+              {appRel?.latest ?? "检测中…"}
+              {info?.app?.version && appRel?.latest && verCmp(appRel.latest, info.app.version) <= 0 && (
+                <span className="ep-badge ok">已是最新</span>
+              )}
+            </div>
             <div className="ep-row-actions" />
+          </div>
+          <div className="ep-row">
+            <div className="ep-row-label">上次检查</div>
+            <div className="ep-row-value">{relativeStamp(appRel?.checkedAt)}</div>
+            <div className="ep-row-actions">
+              <button type="button" className="ep-tool-btn" disabled={checkingApp} onClick={checkApp}>
+                {checkingApp ? "检测中…" : "检查"}
+              </button>
+            </div>
           </div>
         </div>
         <div className="ep-upgrade-row">
-          <span className="ep-hint-inline">应用更新由壳全自动完成;预发布(开发版)不出现在自动更新里</span>
+          <span className="ep-hint-inline">
+            更新流程:下载新 exe(完整性校验)→自动换装重启;预发布(开发版)不出现在稳定通道
+          </span>
           <button
             type="button"
-            className="ep-secondary"
-            disabled={upgrading}
-            onClick={() => invoke("dsh_self_update_check").catch(() => {})}
+            className="ep-primary"
+            disabled={
+              appUpdating ||
+              checkingApp ||
+              !(
+                info?.app?.version &&
+                appRel?.latest &&
+                verCmp(appRel.latest, info.app.version) > 0
+              )
+            }
+            onClick={() => {
+              setAppUpdating(true);
+              invoke("dsh_self_update_check")
+                .catch(() => {})
+                .finally(() => setTimeout(() => setAppUpdating(false), 3000));
+            }}
           >
-            检查应用更新
+            {appUpdating ? "更新中…" : "立即更新"}
           </button>
         </div>
       </section>

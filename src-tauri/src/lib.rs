@@ -89,6 +89,19 @@ fn dsh_self_update_check(app: AppHandle) {
     update::check_now(app);
 }
 
+/// 更新 tab: latest stable GitHub release tag for the app card.
+#[tauri::command]
+fn app_latest_stable() -> serde_json::Value {
+    update::app_latest_stable().unwrap_or(serde_json::Value::Null)
+}
+
+/// 更新 tab「立即更新」(app): runs the real on-demand self-update — check,
+/// download with integrity verification, swap, auto-restart when newer.
+#[tauri::command]
+fn app_self_update(app: AppHandle) {
+    update::check_now(app);
+}
+
 /// 更新 tab「升级」: global dsh -> npm latest. High-impact: stops the
 /// backend around the install and lets supervision/startup re-run it.
 #[tauri::command]

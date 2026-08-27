@@ -636,6 +636,17 @@ pub fn upgrade_backend(channel: Option<String>) -> Result<String, String> {
     }
 }
 
+/// Latest stable release tag for the 更新 tab's app card (same GitHub
+/// endpoint the auto-updater uses). No asset needed — just the tag + time.
+pub fn app_latest_stable() -> Option<Value> {
+    let api_url = format!("https://api.github.com/repos/{REPO_SLUG}/releases/latest");
+    let body = api_get_json(&api_url)?;
+    Some(json!({
+        "latest": body["tag_name"].as_str()?.trim_start_matches('v').to_string(),
+        "checkedAt": now_stamp(),
+    }))
+}
+
 /// Spawn the launch-time update check on its own thread. Never blocks and
 /// never fails loudly — errors reach the pill as a `failed` state.
 pub fn spawn_check(app: AppHandle) {
