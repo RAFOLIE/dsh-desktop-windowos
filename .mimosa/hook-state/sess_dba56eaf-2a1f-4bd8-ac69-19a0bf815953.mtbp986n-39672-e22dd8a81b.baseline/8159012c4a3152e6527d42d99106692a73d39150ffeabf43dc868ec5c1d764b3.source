@@ -1046,24 +1046,13 @@ export function useI18n(): I18n {
 export async function loadUiLocale(): Promise<Locale> {
   try {
     const s = await invoke<{ uiLocale?: string }>("app_get_shell_settings");
-    const known: Locale[] = ["zh", "zh-Hant", "en", "ja", "ko", "ru"];
-    return known.includes(s.uiLocale as Locale) ? (s.uiLocale as Locale) : "zh";
+    return s.uiLocale === "en" ? "en" : "zh";
   } catch {
     return "zh";
   }
 }
 
-/** BCP-47 tag per locale (a11y + font shaping). */
-const LANG_TAGS: Record<Locale, string> = {
-  zh: "zh-CN",
-  "zh-Hant": "zh-Hant",
-  en: "en",
-  ja: "ja",
-  ko: "ko",
-  ru: "ru",
-};
-
 /** Keep <html lang> aligned (a11y + font shaping). */
 export function applyHtmlLang(locale: Locale): void {
-  document.documentElement.lang = LANG_TAGS[locale];
+  document.documentElement.lang = locale === "en" ? "en" : "zh-CN";
 }

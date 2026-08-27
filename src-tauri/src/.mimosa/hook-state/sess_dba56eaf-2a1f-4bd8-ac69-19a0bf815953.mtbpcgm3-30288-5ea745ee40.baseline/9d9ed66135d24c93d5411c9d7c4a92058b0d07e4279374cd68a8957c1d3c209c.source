@@ -139,13 +139,10 @@ fn on_task_finished(app: &AppHandle, session_id: &str) {
     }
 
     let title = resolve_session_title(session_id)
-        .unwrap_or_else(|| {
-            crate::dsh::ui_txt6("一个会话", "一個會話", "a session", "セッション", "세션", "сеанс")
-                .to_string()
-        });
+        .unwrap_or_else(|| crate::dsh::ui_txt("a session", "一个会话").to_string());
     let body = format!(
         "{}:{title}",
-        crate::dsh::ui_txt6("任务已完成", "任務已完成", "Task finished", "タスク完了", "작업 완료", "Задача завершена")
+        crate::dsh::ui_txt("Task finished", "任务已完成")
     );
 
     let app2 = app.clone();
@@ -156,14 +153,8 @@ fn on_task_finished(app: &AppHandle, session_id: &str) {
         .title("DSH")
         .text1(&body)
         .duration(ToastDuration::Short)
-        .add_button(
-            crate::dsh::ui_txt6("打开窗口", "開啟視窗", "Open window", "ウィンドウを開く", "창 열기", "Открыть окно"),
-            "open",
-        )
-        .add_button(
-            crate::dsh::ui_txt6("明白", "明白", "Got it", "OK", "확인", "Понятно"),
-            "ack",
-        )
+        .add_button(crate::dsh::ui_txt("Open window", "打开窗口"), "open")
+        .add_button(crate::dsh::ui_txt("Got it", "明白"), "ack")
         .on_activated(move |action| {
             if action.as_deref() == Some("open") {
                 crate::show_main_window(&app2);

@@ -80,65 +80,39 @@ fn app_set_ui_locale(app: AppHandle, locale: String) {
 
 /// Tray menu built for the current locale (ids stay stable; only labels flip).
 fn build_tray_menu<M: Manager<Wry>>(manager: &M) -> tauri::Result<Menu<Wry>> {
-    let (t_open, t_restart, t_restart_app, t_update, t_env, t_quit) =
-        match dsh::ui_locale().as_str() {
-            "zh-Hant" => (
-                "開啟 DSH",
-                "重啟 dsh web（後端）",
-                "前後端重啟",
-                "檢查前端更新",
-                "環境資訊",
-                "退出（關閉 DSH）",
-            ),
-            "en" => (
-                "Open DSH",
-                "Restart dsh web (backend)",
-                "Restart shell & backend",
-                "Check for updates",
-                "Environment info",
-                "Quit (stops DSH)",
-            ),
-            "ja" => (
-                "DSH を開く",
-                "dsh web（バックエンド）を再起動",
-                "シェルとバックエンドを再起動",
-                "更新を確認",
-                "環境情報",
-                "終了（DSH も停止）",
-            ),
-            "ko" => (
-                "DSH 열기",
-                "dsh web(백엔드) 재시작",
-                "셸·백엔드 재시작",
-                "업데이트 확인",
-                "환경 정보",
-                "종료(DSH 중지)",
-            ),
-            "ru" => (
-                "Открыть DSH",
-                "Перезапустить dsh web (бэкенд)",
-                "Перезапуск оболочки и бэкенда",
-                "Проверить обновления",
-                "Сведения о среде",
-                "Выход (остановить DSH)",
-            ),
-            _ => (
-                "Open DSH",
-                "重启 dsh web(后端)",
-                "前后端重启",
-                "检查前端更新",
-                "环境信息",
-                "退出(关闭 DSH)",
-            ),
-        };
-    let open = MenuItem::with_id(manager, "open", t_open, true, None::<&str>)?;
+    let en = dsh::ui_locale() == "en";
+    let tr = |zh: &'static str, en_text: &'static str| -> &'static str {
+        if en {
+            en_text
+        } else {
+            zh
+        }
+    };
+    let open = MenuItem::with_id(manager, "open", tr("Open DSH", "Open DSH"), true, None::<&str>)?;
     // Backend-only restart: relaunches the dsh web process, not the app.
-    let restart = MenuItem::with_id(manager, "restart", t_restart, true, None::<&str>)?;
-    let restart_app_item =
-        MenuItem::with_id(manager, "restart-app", t_restart_app, true, None::<&str>)?;
-    let update = MenuItem::with_id(manager, "update", t_update, true, None::<&str>)?;
-    let env = MenuItem::with_id(manager, "env", t_env, true, None::<&str>)?;
-    let quit = MenuItem::with_id(manager, "quit", t_quit, true, None::<&str>)?;
+    let restart = MenuItem::with_id(
+        manager,
+        "restart",
+        tr("重启 dsh web(后端)", "Restart dsh web (backend)"),
+        true,
+        None::<&str>,
+    )?;
+    let restart_app_item = MenuItem::with_id(
+        manager,
+        "restart-app",
+        tr("前后端重启", "Restart shell & backend"),
+        true,
+        None::<&str>,
+    )?;
+    let update = MenuItem::with_id(
+        manager,
+        "update",
+        tr("检查前端更新", "Check for updates"),
+        true,
+        None::<&str>,
+    )?;
+    let env = MenuItem::with_id(manager, "env", tr("环境信息", "Environment info"), true, None::<&str>)?;
+    let quit = MenuItem::with_id(manager, "quit", tr("退出(关闭 DSH)", "Quit (stops DSH)"), true, None::<&str>)?;
     Menu::with_items(manager, &[&open, &restart, &restart_app_item, &update, &env, &quit])
 }
 
@@ -619,7 +593,7 @@ pub fn run() {    tauri::Builder::default()
                                 .unwrap_or_else(|| url.to_string());
                             crate::update::toast(&format!(
                                 "{}: {name}",
-                                dsh::ui_txt6("下载完成", "下載完成", "Download finished", "ダウンロード完了", "다운로드 완료", "Загрузка завершена")
+                                dsh::ui_txt("Download finished", "下载完成")
                             ));
                             let shown = path
                                 .as_ref()

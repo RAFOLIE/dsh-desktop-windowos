@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-08-27T15:52:42.716Z",
+  "sessionId": "sess_dba56eaf-2a1f-4bd8-ac69-19a0bf815953",
+  "event": "PreToolUse",
+  "toolName": "Edit",
+  "file": "src-tauri/src/lib.rs",
+  "outcome": "inconclusive",
+  "coverage": "partial",
+  "findingCount": 0,
+  "durationMs": 1010,
+  "telemetry": {
+    "schemaVersion": "mimosa-gate-telemetry/v1",
+    "profile": "gate",
+    "operation": "PreToolUse",
+    "outcome": "partial/INCONCLUSIVE",
+    "latencyMs": 1010,
+    "peakMemoryBytes": 136863744,
+    "memoryMeasurement": "max-observed-process-rss",
+    "scannedFiles": 1,
+    "cache": {
+      "hits": 0,
+      "misses": 1,
+      "measurement": "not-applicable"
+    },
+    "denyCount": 0,
+    "tokens": {
+      "input": 0,
+      "output": 0,
+      "total": 0,
+      "modelCalls": 0,
+      "measurement": "known-zero"
+    }
+  },
+  "hostState": "hook_complete_waiting_host_tool_decision",
+  "reportHint": ".mimosa/reports/"
+}

@@ -391,14 +391,10 @@ fn run_check(app: &AppHandle, on_demand: bool) -> Result<(), String> {
         ));
         toast(&format!(
             "{} v{to_version}({})",
-            dsh::ui_txt6("发现新版", "發現新版", "Update available", "新しいバージョン", "새 버전 발견", "Доступно обновление"),
-            dsh::ui_txt6(
-                "自动更新已关闭,可在环境面板手动更新",
-                "自動更新已關閉，可在環境面板手動更新",
+            dsh::ui_txt("Update available", "发现新版"),
+            dsh::ui_txt(
                 "auto-update is off; install from the panel",
-                "自動更新はオフ。パネルから手動でインストール",
-                "자동 업데이트 꺼짐, 패널에서 수동 설치",
-                "автообновление выключено; установите из панели",
+                "自动更新已关闭,可在环境面板手动更新"
             )
         ));
         narrate(json!({ "state": "none" }));
@@ -409,7 +405,7 @@ fn run_check(app: &AppHandle, on_demand: bool) -> Result<(), String> {
         if on_demand {
             toast(&format!(
                 "{} v{current}",
-                dsh::ui_txt6("前端已是最新版本", "前端已是最新版本", "Already on the latest version", "最新バージョンです", "이미 최신 버전입니다", "Уже последняя версия")
+                dsh::ui_txt("Already on the latest version", "前端已是最新版本")
             ));
         }
         sync_plugin_packages();
@@ -420,7 +416,7 @@ fn run_check(app: &AppHandle, on_demand: bool) -> Result<(), String> {
     if on_demand {
         toast(&format!(
             "{} v{to_version}…",
-            dsh::ui_txt6("正在下载前端", "正在下載前端", "Downloading update", "アプリをダウンロード中", "앱 다운로드 중", "Скачивание обновления")
+            dsh::ui_txt("Downloading update", "正在下载前端")
         ));
     }
     let exe = tauri::utils::platform::current_exe().map_err(|e| format!("current exe: {e}"))?;
@@ -452,8 +448,8 @@ fn run_check(app: &AppHandle, on_demand: bool) -> Result<(), String> {
     if on_demand {
         toast(&format!(
             "{} v{to_version},{}",
-            dsh::ui_txt6("已更新到", "已更新到", "Updated to", "更新完了:", "업데이트 완료:", "Обновлено до"),
-            dsh::ui_txt6("正在重启…", "正在重啟…", "restarting…", "再起動中…", "재시작 중…", "перезапуск…")
+            dsh::ui_txt("Updated to", "已更新到"),
+            dsh::ui_txt("restarting…", "正在重启…")
         ));
     }
     log_line(&format!(
@@ -756,7 +752,7 @@ pub fn check_now(app: AppHandle) {
             let _ = app.emit("app-update", json!({ "state": "failed", "message": message }));
             toast(&format!(
                 "{}:{message}",
-                dsh::ui_txt6("检查前端更新失败", "檢查前端更新失敗", "Update check failed", "更新の確認に失敗しました", "업데이트 확인 실패", "Ошибка проверки обновлений")
+                dsh::ui_txt("Update check failed", "检查前端更新失败")
             ));
         }
     });

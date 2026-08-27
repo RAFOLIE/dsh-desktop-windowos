@@ -406,32 +406,18 @@ pub(crate) fn ui_locale() -> String {
 }
 
 pub(crate) fn set_ui_locale(locale: &str) {
-    let value = match locale {
-        "en" | "ja" | "ko" | "ru" | "zh-Hant" => locale,
-        _ => "zh",
-    };
+    let value = if locale == "en" { "en" } else { "zh" };
     let mut settings = read_settings();
     settings["uiLocale"] = json!(value);
     write_settings(settings);
 }
 
 /// Pick the current-locale string for shell-originated toasts/menus.
-/// Argument order: [zh] [zh-Hant] [en] [ja] [ko] [ru].
-pub(crate) fn ui_txt6<'a>(
-    zh: &'a str,
-    hant: &'a str,
-    en: &'a str,
-    ja: &'a str,
-    ko: &'a str,
-    ru: &'a str,
-) -> &'a str {
-    match ui_locale().as_str() {
-        "zh-Hant" => hant,
-        "en" => en,
-        "ja" => ja,
-        "ko" => ko,
-        "ru" => ru,
-        _ => zh,
+pub(crate) fn ui_txt(en: &'static str, zh: &'static str) -> &'static str {
+    if ui_locale() == "en" {
+        en
+    } else {
+        zh
     }
 }
 
