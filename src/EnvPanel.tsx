@@ -671,7 +671,7 @@ export default function EnvPanel({
 
   // --- resizable dialog width (persisted; clamped) ---
   const MIN_W = 720;
-  const DEFAULT_W = 1150;
+  const DEFAULT_W = MIN_W; // 默认开在最小宽度(720)
   const maxW = () => Math.min(1440, window.innerWidth - 96);
   const clampW = (w: number) => Math.max(MIN_W, Math.min(w, maxW()));
   const loadW = (): number => {
