@@ -992,7 +992,8 @@ input:focus-visible {
 }
 
 .ep-select-desc-below {
-  margin-top: 10px;
+  /* aligns with the select button's inner text (16px padding) */
+  margin: 10px 16px 0;
   font-size: 13px;
   color: #969dab;
 }
