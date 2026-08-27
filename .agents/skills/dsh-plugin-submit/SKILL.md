@@ -95,7 +95,7 @@ curl -s https://awesome-dsh-plugin.com/plugins.json           # 注册表数据(
 
 1. **开发期 → 预发布(开发版)**:`gh release create vX --prerelease ...`
 2. **收敛后的稳定性检查版(含修 bug 迭代)→ 仍走预发布**——不因功能收敛自动转正
-3. **用户明确确认稳定 → 转正(稳定版)**:`gh release edit vX --prerelease=false --latest`
+3. **用户明确确认稳定 → 转正(稳定版)**:`gh release edit vX --prerelease=false --latest`;转正时重写说明=**自上个稳定版以来全部预发布内容的主题式汇总**(新功能/打磨/修复分组,中英双语),而非只保留末轮增量文字(2026-08-27 用户定)
 
 `releases/latest` 天然排除预发布,家里机器与外部用户的自动更新全程不受开发版影响;公司机手动换装承担验证。
 
