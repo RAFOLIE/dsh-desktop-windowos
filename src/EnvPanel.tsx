@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { applySkin, type UiTheme } from "./theme";
+import { useI18n, type T } from "./i18n";
 
 /** Rust-side env_info payload (all fields nullable — probes degrade). */
 export type EnvInfo = {
@@ -30,17 +31,17 @@ export type EnvInfo = {
 /** Which detail tab is active. */
 type Tab = "env" | "log" | "update" | "settings";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "env", label: "环境" },
-  { id: "log", label: "日志" },
-  { id: "update", label: "更新" },
-  { id: "settings", label: "设置" },
+const TABS: { id: Tab; labelKey: Parameters<T>["0"] }[] = [
+  { id: "env", labelKey: "tab.env" },
+  { id: "log", labelKey: "tab.log" },
+  { id: "update", labelKey: "tab.update" },
+  { id: "settings", labelKey: "tab.settings" },
 ];
 
 const TAB_IDS: readonly string[] = TABS.map((t) => t.id);
 
-function formatBytes(bytes: number | null | undefined): string {
-  if (bytes === null || bytes === undefined) return "未检测到";
+function formatBytes(bytes: number | null | undefined, notDetected: string): string {
+  if (bytes === null || bytes === undefined) return notDetected;
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];
   let value = bytes;
@@ -117,20 +118,24 @@ function FieldRow({
   openable?: boolean;
   onCopy: (text: string) => void;
 }) {
-  const shown = value === null || value === undefined || value === "" ? "未检测到" : value;
-  const absent = shown === "未检测到";
+  const { t } = useI18n();
+  const shown = value === null || value === undefined || value === "" ? t("common.notDetected") : value;
+  const absent = shown === t("common.notDetected");
   return (
     <div className="ep-row">
       <div className="ep-row-label">{label}</div>
       <div className={`ep-row-value${mono ? " mono" : ""}${absent ? " absent" : ""}`}>{shown}</div>
       <div className="ep-row-actions">
         {!absent && (
-          <IconButton label="复制" onClick={() => onCopy(shown)}>
+          <IconButton label={t("common.copy")} onClick={() => onCopy(shown)}>
             {CopyIcon}
           </IconButton>
         )}
         {!absent && openable && (
-          <IconButton label="打开目录" onClick={() => invoke("open_path", { path: shown }).catch(() => {})}>
+          <IconButton
+            label={t("common.openDir")}
+            onClick={() => invoke("open_path", { path: shown }).catch(() => {})}
+          >
             {FolderIcon}
           </IconButton>
         )}
@@ -159,6 +164,7 @@ function SectionCard({
 /** Log tab: shell session console with level filters, follow-on-scroll,
  *  clear-display (frontend only) and jump-to-latest. */
 function LogViewer({ onCopy }: { onCopy: (text: string, note: string) => void }) {
+  const { t } = useI18n();
   const [lines, setLines] = useState<string[] | null>(null);
   const [polling, setPolling] = useState(true);
   const [follow, setFollow] = useState(true);
@@ -232,17 +238,17 @@ function LogViewer({ onCopy }: { onCopy: (text: string, note: string) => void })
         ))}
         <span className="ep-log-spacer" />
         <button type="button" className="ep-tool-btn" onClick={() => setPolling((p) => !p)}>
-          {polling ? "暂停自动刷新" : "恢复自动刷新"}
+          {polling ? t("log.pauseAuto") : t("log.resumeAuto")}
         </button>
         <button
           type="button"
           className="ep-tool-btn"
-          onClick={() => onCopy((lines ?? []).join("\n"), "已复制")}
+          onClick={() => onCopy((lines ?? []).join("\n"), t("common.copied"))}
         >
-          复制全部
+          {t("log.copyAll")}
         </button>
         <button type="button" className="ep-tool-btn" onClick={() => setCleared(true)}>
-          清空显示
+          {t("log.clearDisplay")}
         </button>
         <button
           type="button"
@@ -253,7 +259,7 @@ function LogViewer({ onCopy }: { onCopy: (text: string, note: string) => void })
             if (el) el.scrollTop = el.scrollHeight;
           }}
         >
-          跳到最新
+          {t("log.jumpLatest")}
         </button>
       </div>
       <pre
@@ -264,8 +270,8 @@ function LogViewer({ onCopy }: { onCopy: (text: string, note: string) => void })
           setFollow(el.scrollHeight - el.scrollTop - el.clientHeight < 40);
         }}
       >
-        {lines === null && "读取中…"}
-        {lines !== null && visible.length === 0 && (cleared ? "(已清空显示,新日志继续到达)" : "(空)")}
+        {lines === null && t("log.reading")}
+        {lines !== null && visible.length === 0 && (cleared ? t("log.cleared") : t("log.empty"))}
         {visible.map((line, i) => (
           <span key={i} className={lineClass(line)}>
             {line}
@@ -280,17 +286,17 @@ function LogViewer({ onCopy }: { onCopy: (text: string, note: string) => void })
 /** Channels payload from dsh_npm_channels. */
 type DshChannels = { latest?: string; next?: string | null; checkedAt?: string };
 
-/** "8 分钟前"-style relative stamp for the 上次检查 row. */
-function relativeStamp(stamp: string | undefined): string {
+/** "{n} 分钟前"-style relative stamp for the 上次检查 row. */
+function relativeStamp(stamp: string | undefined, t: T): string {
   if (!stamp) return "—";
   const then = new Date(stamp.replace(" ", "T")).getTime();
   if (Number.isNaN(then)) return stamp;
   const mins = Math.round((Date.now() - then) / 60000);
-  if (mins < 1) return "刚刚";
-  if (mins < 60) return `${mins} 分钟前`;
+  if (mins < 1) return t("time.justNow");
+  if (mins < 60) return t("time.minAgo", { n: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} 小时前`;
-  return `${Math.round(hours / 24)} 天前`;
+  if (hours < 24) return t("time.hourAgo", { n: hours });
+  return t("time.dayAgo", { n: Math.round(hours / 24) });
 }
 
 /** Loose numeric semver compare ("1.6.17" vs "v1.6.11") — enough for tags. */
@@ -409,14 +415,14 @@ function ChannelPicker({
   );
 }
 
-const BACKEND_CHANNELS: ChannelOption[] = [
-  { id: "latest", title: "npm latest — 推荐", desc: "稳定通道,大多数用户使用" },
-  { id: "next", title: "npm next — 预发布", desc: "rc 候选通道,抢先体验新功能" },
+const backendChannels = (t: T): ChannelOption[] => [
+  { id: "latest", title: t("upd.bchLatestTitle"), desc: t("upd.bchLatestDesc") },
+  { id: "next", title: t("upd.bchNextTitle"), desc: t("upd.bchNextDesc") },
 ];
 
-const APP_CHANNELS: ChannelOption[] = [
-  { id: "stable", title: "稳定版 — 推荐", desc: "跟踪 latest,不含开发版" },
-  { id: "dev", title: "预发布版 — 开发通道", desc: "含每轮迭代与稳定性检查版" },
+const appChannels = (t: T): ChannelOption[] => [
+  { id: "stable", title: t("upd.achStableTitle"), desc: t("upd.achStableDesc") },
+  { id: "dev", title: t("upd.achDevTitle"), desc: t("upd.achDevDesc") },
 ];
 
 /** 更新 tab, Comfy-Desktop-style: big heading + facts card + a channel
@@ -441,6 +447,7 @@ function UpdateTab({
   const [savingCfg, setSavingCfg] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [channel, setChannel] = useState<Channel>("latest");
+  const { t } = useI18n();
 
   const check = useCallback(() => {
     setChecking(true);
@@ -503,18 +510,18 @@ function UpdateTab({
 
 
   const upgrade = (alsoCopy: boolean) => {
-    const label = channel === "latest" ? "npm latest(稳定版)" : "npm next(rc 预发布)";
-    if (!window.confirm(`升级全局 dsh 到 ${label}?会重启 DSH 后端(会话数据保留)`)) return;
+    const label = channel === "latest" ? t("upd.npmLatest") : t("upd.npmNext");
+    if (!window.confirm(t("upd.confirmUpgrade", { label }))) return;
     if (alsoCopy) navigator.clipboard?.writeText(installCmd).catch(() => {});
     setUpgrading(true);
     setNote(null);
     invoke<string>("dsh_backend_upgrade", { channel })
       .then((stamp) => {
-        setNote(`升级完成(${stamp}),后端已按新版本重启`);
+        setNote(t("upd.doneNote", { stamp }));
         check();
         onBackendUpgraded();
       })
-      .catch(() => setNote("升级失败,详见日志"))
+      .catch(() => setNote(t("upd.failNote")))
       .finally(() => setUpgrading(false));
   };
 
@@ -526,25 +533,25 @@ function UpdateTab({
           {installed !== null && (
             <span className="ep-version-num">{installed.startsWith("0.1") ? installed : `v${installed}`}</span>
           )}
-          {hasUpdate && <span className="ep-badge warn">有可用更新</span>}
+          {hasUpdate && <span className="ep-badge warn">{t("upd.badgeHasUpdate")}</span>}
         </div>
         <div className="ep-card">
           <div className="ep-row">
-            <div className="ep-row-label">已安装版本</div>
-            <div className="ep-row-value mono">{installed ?? "未检测到"}</div>
+            <div className="ep-row-label">{t("upd.installed")}</div>
+            <div className="ep-row-value mono">{installed ?? t("common.notDetected")}</div>
             <div className="ep-row-actions" />
           </div>
           <div className="ep-row">
-            <div className="ep-row-label">最新版本</div>
-            <div className="ep-row-value mono link">{channels?.latest ?? "检测中…"}</div>
+            <div className="ep-row-label">{t("upd.latest")}</div>
+            <div className="ep-row-value mono link">{channels?.latest ?? t("common.checking")}</div>
             <div className="ep-row-actions" />
           </div>
           <div className="ep-row">
-            <div className="ep-row-label">上次检查</div>
-            <div className="ep-row-value">{relativeStamp(channels?.checkedAt)}</div>
+            <div className="ep-row-label">{t("upd.lastCheck")}</div>
+            <div className="ep-row-value">{relativeStamp(channels?.checkedAt, t)}</div>
             <div className="ep-row-actions">
               <button type="button" className="ep-tool-btn" disabled={checking} onClick={check}>
-                {checking ? "检测中…" : "检查"}
+                {checking ? t("common.checking") : t("upd.check")}
               </button>
             </div>
           </div>
@@ -552,16 +559,16 @@ function UpdateTab({
 
         <div className="ep-card ep-channel-card">
           <div className="ep-channel-title">
-            更新通道
-            <span className="ep-help" title="选择全局 dsh 升级时要安装的 npm 发行通道">?</span>
+            {t("upd.channelTitle")}
+            <span className="ep-help" title={t("upd.channelHelpBackend")}>?</span>
           </div>
-          <ChannelPicker value={channel} onChange={(id) => setChannel(id as Channel)} options={BACKEND_CHANNELS} />
+          <ChannelPicker value={channel} onChange={(id) => setChannel(id as Channel)} options={backendChannels(t)} />
           <div className="ep-upgrade-row">
             <button type="button" className="ep-secondary" disabled={upgrading || target == null} onClick={() => upgrade(true)}>
-              复制并更新
+              {t("upd.copyAndUpdate")}
             </button>
             <button type="button" className="ep-primary" disabled={upgrading || target == null} onClick={() => upgrade(false)}>
-              {upgrading ? "更新中…(约 1 分钟)" : "立即更新"}
+              {upgrading ? t("upd.nowUpdating") : t("upd.updateNow")}
             </button>
           </div>
         </div>
@@ -574,34 +581,34 @@ function UpdateTab({
           {"dsh desktop "}
           {info?.app?.version && <span className="ep-version-num">v{info.app.version}</span>}
           {info?.app?.version && appRel?.latest && verCmp(appRel.latest, info.app.version) > 0 && (
-            <span className="ep-badge warn">有可用更新</span>
+            <span className="ep-badge warn">{t("upd.badgeHasUpdate")}</span>
           )}
         </div>
         <div className="ep-card">
           <div className="ep-row">
-            <div className="ep-row-label">已安装版本</div>
-            <div className="ep-row-value mono">{info?.app?.version ?? "未检测到"}</div>
+            <div className="ep-row-label">{t("upd.installed")}</div>
+            <div className="ep-row-value mono">{info?.app?.version ?? t("common.notDetected")}</div>
             <div className="ep-row-actions" />
           </div>
           <div className="ep-row">
-            <div className="ep-row-label">最新版本</div>
+            <div className="ep-row-label">{t("upd.latest")}</div>
             <div className={`ep-row-value mono${appRel?.latest ? " link" : ""}`}>
               {appRel?.latest ? (
                 <>
                   <span className={`ep-badge ${appRelSrc === "dev" ? "warn" : "ok"}`}>
-                    {appRelSrc === "dev" ? "预览版" : "稳定版"}
+                    {appRelSrc === "dev" ? t("upd.badgePreview") : t("upd.badgeStable")}
                   </span>
                   {appRel.latest}
                 </>
               ) : (
-                "检测中…"
+                t("common.checking")
               )}
             </div>
             <div className="ep-row-actions" />
           </div>
           <div className="ep-row">
-            <div className="ep-row-label">上次检查</div>
-            <div className="ep-row-value">{relativeStamp(appRel?.checkedAt)}</div>
+            <div className="ep-row-label">{t("upd.lastCheck")}</div>
+            <div className="ep-row-value">{relativeStamp(appRel?.checkedAt, t)}</div>
             <div className="ep-row-actions">
               <button
                 type="button"
@@ -609,32 +616,32 @@ function UpdateTab({
                 disabled={checkingApp}
                 onClick={() => checkApp(cfg?.channel === "dev" ? "dev" : "stable")}
               >
-                {checkingApp ? "检测中…" : "检查"}
+                {checkingApp ? t("common.checking") : t("upd.check")}
               </button>
             </div>
           </div>
         </div>
         <div className="ep-card ep-channel-card">
           <div className="ep-channel-title">
-            更新通道
-            <span className="ep-help" title="桌面壳自动更新追踪的发行通道">?</span>
+            {t("upd.channelTitle")}
+            <span className="ep-help" title={t("upd.channelHelpApp")}>?</span>
           </div>
           <ChannelPicker
             value={cfg?.channel ?? "stable"}
             onChange={(id) => saveCfg({ channel: id as "stable" | "dev" })}
-            options={APP_CHANNELS}
+            options={appChannels(t)}
             disabled={savingCfg}
           />
           <div className="ep-upgrade-row">
             <span className="ep-hint-inline">
-              自动更新{cfg?.autoUpdate === false ? "已关闭:启动仍检测并播报新版,不下载" : "开启:发现新版即下载换装并自动重启"}
+              {cfg?.autoUpdate === false ? t("upd.autoOff") : t("upd.autoOn")}
             </span>
             <button
               type="button"
               className={`ep-switch${cfg?.autoUpdate ? " on" : ""}`}
               role="switch"
               aria-checked={cfg?.autoUpdate ?? true}
-              aria-label="自动更新"
+              aria-label={t("upd.autoUpdate")}
               disabled={savingCfg}
               onClick={() => saveCfg({ autoUpdate: !(cfg?.autoUpdate ?? true) })}
             />
@@ -643,7 +650,7 @@ function UpdateTab({
 
         <div className="ep-upgrade-row">
           <span className="ep-hint-inline">
-            立即更新按所选通道检查并安装(不受自动更新开关限制);验证后旧 exe 保留为 .old
+            {t("upd.manualHint")}
           </span>
           <button
             type="button"
@@ -664,7 +671,7 @@ function UpdateTab({
                 .finally(() => setTimeout(() => setAppUpdating(false), 3000));
             }}
           >
-            {appUpdating ? "更新中…" : "立即更新"}
+            {appUpdating ? t("common.checking") : t("upd.updateNow")}
           </button>
         </div>
       </section>
@@ -680,11 +687,12 @@ type ShellSettings = {
   alwaysOnTop: boolean;
   autostart: boolean;
   uiTheme: UiTheme;
+  uiLocale: "zh" | "en";
 };
 
-const CLOSE_ACTIONS: ChannelOption[] = [
-  { id: "tray", title: "隐藏到托盘 — 推荐", desc: "关闭窗口后 DSH 继续运行,双击托盘图标找回" },
-  { id: "exit", title: "直接退出", desc: "点击 X 即退出应用并关闭 DSH 后端" },
+const closeActions = (t: T): ChannelOption[] => [
+  { id: "tray", title: t("set.closeTray"), desc: t("set.closeTrayDesc") },
+  { id: "exit", title: t("set.closeExit"), desc: t("set.closeExitDesc") },
 ];
 
 /** One boolean preference row: label / 说明 / 开关 pill(改动即时落盘). */
@@ -723,6 +731,7 @@ function PrefRow({
 /** 设置 tab, Comfy-Desktop-style:窗口行为 + 面板偏好,全部即时保存。
  *  更新通道/自动更新刻意不在此页——归「更新」tab,避免同一配置两处入口。 */
 function SettingsTab({ currentTab }: { currentTab: Tab }) {
+  const { t, locale, setLocale } = useI18n();
   const [cfg, setCfg] = useState<ShellSettings | null>(null);
   const [rememberTab, setRememberTab] = useState<boolean>(
     () => localStorage.getItem("epRememberTab") !== "0",
@@ -735,6 +744,7 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
       alwaysOnTop?: boolean;
       autostart?: boolean;
       uiTheme?: string;
+      uiLocale?: string;
     }>("app_get_shell_settings")
       .then((r) => {
         setCfg({
@@ -743,6 +753,7 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
           autostart: r.autostart === true,
           uiTheme:
             r.uiTheme === "dark" || r.uiTheme === "light" ? r.uiTheme : "system",
+          uiLocale: r.uiLocale === "en" ? "en" : "zh",
         });
       })
       .catch(() => {});
@@ -792,20 +803,14 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
   return (
     <div className="ep-content-inner">
       <section className="ep-group">
-        <div className="ep-group-title">外观</div>
+        <div className="ep-group-title">{t("set.groupAppearance")}</div>
         <div className="ep-card">
           <div className="ep-row">
-            <div className="ep-row-label">界面主题</div>
-            <div className="ep-row-value">壳界面即时生效；内嵌网页在重启应用后跟随所选配色</div>
+            <div className="ep-row-label">{t("set.theme")}</div>
+            <div className="ep-row-value">{t("set.themeDesc")}</div>
             <div className="ep-row-actions">
-              <div className="ep-seg" role="radiogroup" aria-label="界面主题">
-                {(
-                  [
-                    ["system", "跟随系统"],
-                    ["dark", "深色"],
-                    ["light", "浅色"],
-                  ] as const
-                ).map(([value, label]) => (
+              <div className="ep-seg" role="radiogroup" aria-label={t("set.theme")}>
+                {(["system", "dark", "light"] as const).map((value) => (
                   <button
                     key={value}
                     type="button"
@@ -815,7 +820,27 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
                     disabled={cfg === null}
                     onClick={() => saveUiTheme(value)}
                   >
-                    {label}
+                    {value === "system" ? t("set.themeSystem") : value === "dark" ? t("set.themeDark") : t("set.themeLight")}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="ep-row">
+            <div className="ep-row-label">{t("set.language")}</div>
+            <div className="ep-row-value">{t("set.langDesc")}</div>
+            <div className="ep-row-actions">
+              <div className="ep-seg" role="radiogroup" aria-label={t("set.language")}>
+                {(["zh", "en"] as const).map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    role="radio"
+                    aria-checked={locale === l}
+                    className={`ep-seg-btn${locale === l ? " active" : ""}`}
+                    onClick={() => setLocale(l)}
+                  >
+                    {l === "zh" ? "中文" : "English"}
                   </button>
                 ))}
               </div>
@@ -825,18 +850,18 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
       </section>
 
       <section className="ep-group">
-        <div className="ep-group-title">窗口</div>
+        <div className="ep-group-title">{t("set.groupWindow")}</div>
         <div className="ep-card">
           <PrefRow
-            label="窗口置顶"
-            desc="总是保持在其他窗口最前"
+            label={t("set.alwaysOnTop")}
+            desc={t("set.alwaysOnTopDesc")}
             active={cfg?.alwaysOnTop ?? false}
             disabled={cfg === null}
             onToggle={saveAlwaysOnTop}
           />
           <PrefRow
-            label="开机自启"
-            desc="登录 Windows 后自动启动(最小化待命,后端随应用走)"
+            label={t("set.autostart")}
+            desc={t("set.autostartDesc")}
             active={cfg?.autostart ?? false}
             disabled={cfg === null || busyAutostart}
             onToggle={saveAutostart}
@@ -844,24 +869,24 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
         </div>
         <div className="ep-card ep-channel-card">
           <div className="ep-channel-title">
-            关闭按钮行为
-            <span className="ep-help" title="决定点击标题栏 X 键时应用做什么">?</span>
+            {t("set.closeAction")}
+            <span className="ep-help" title={t("set.closeActionHelp")}>?</span>
           </div>
           <ChannelPicker
             value={cfg?.closeAction ?? "tray"}
             onChange={saveClose}
-            options={CLOSE_ACTIONS}
+            options={closeActions(t)}
             disabled={cfg === null}
           />
         </div>
       </section>
 
       <section className="ep-group">
-        <div className="ep-group-title">面板</div>
+        <div className="ep-group-title">{t("set.groupPanel")}</div>
         <div className="ep-card">
           <PrefRow
-            label="记住上次页签"
-            desc="重新打开面板时落在上次停留的页签(日志直落入口不受影响)"
+            label={t("set.rememberTab")}
+            desc={t("set.rememberTabDesc")}
             active={rememberTab}
             onToggle={saveRememberTab}
           />
@@ -976,10 +1001,14 @@ export default function EnvPanel({
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const copy = useCallback((text: string, note = "已复制") => {
-    navigator.clipboard?.writeText(text).catch(() => {});
-    setToast(note);
-  }, []);
+  const { t } = useI18n();
+  const copy = useCallback(
+    (text: string, note?: string) => {
+      navigator.clipboard?.writeText(text).catch(() => {});
+      setToast(note ?? t("common.copied"));
+    },
+    [t],
+  );
 
   const dsh = info?.dsh;
   const owner = dsh?.owner;
@@ -997,13 +1026,13 @@ export default function EnvPanel({
       .then((result) => {
         navigator.clipboard?.writeText(result.content).catch(() => {});
         invoke("open_path", { path: result.dir }).catch(() => {});
-        setToast("诊断包已复制+已导出");
+        setToast(t("panel.diagExported"));
       })
-      .catch(() => setToast("诊断包导出失败"));
+      .catch(() => setToast(t("panel.diagFailed")));
   };
 
   const restart = () => {
-    if (!window.confirm("重启 dsh web 后端?会话数据不丢失,窗口将短暂回到启动页")) return;
+    if (!window.confirm(t("panel.confirmRestart"))) return;
     invoke("dsh_restart_backend").catch(() => {});
     onClose();
   };
@@ -1031,19 +1060,19 @@ export default function EnvPanel({
         className="ep-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label="环境管理"
+        aria-label={t("panel.dialogAria")}
         style={{ width: dialogWidth }}
       >
         {/* edge resize handles: drag to adjust width, double-click resets */}
         <div
           className="ep-resize-handle left"
-          title="拖动调整宽度 · 双击重置"
+          title={t("env.resizingHint")}
           onPointerDown={startResize("left")}
           onDoubleClick={() => { setDialogWidth(DEFAULT_W); saveW(DEFAULT_W); }}
         />
         <div
           className="ep-resize-handle right"
-          title="拖动调整宽度 · 双击重置"
+          title={t("env.resizingHint")}
           onPointerDown={startResize("right")}
           onDoubleClick={() => { setDialogWidth(DEFAULT_W); saveW(DEFAULT_W); }}
         />
@@ -1056,17 +1085,17 @@ export default function EnvPanel({
           <input
             ref={searchRef}
             value={query}
-            placeholder="搜索环境信息"
+            placeholder={t("env.searchPlaceholder")}
             onChange={(event) => setQuery(event.target.value)}
           />
           {query !== "" ? (
-            <button type="button" className="ep-icon-btn" title="清空搜索" aria-label="清空搜索" onClick={() => setQuery("")}>
+            <button type="button" className="ep-icon-btn" title={t("log.clearDisplay")} aria-label={t("log.clearDisplay")} onClick={() => setQuery("")}>
               <svg viewBox="0 0 10 10" aria-hidden="true">
                 <path d="M0.8 0.8 9.2 9.2 M9.2 0.8 0.8 9.2" stroke="currentColor" strokeWidth="1.2" fill="none" />
               </svg>
             </button>
           ) : (
-            <button type="button" className="ep-icon-btn" title="关闭" aria-label="关闭" onClick={onClose}>
+            <button type="button" className="ep-icon-btn" title={t("common.close")} aria-label={t("common.close")} onClick={onClose}>
               <svg viewBox="0 0 10 10" aria-hidden="true">
                 <path d="M0.8 0.8 9.2 9.2 M9.2 0.8 0.8 9.2" stroke="currentColor" strokeWidth="1.2" fill="none" />
               </svg>
@@ -1078,15 +1107,15 @@ export default function EnvPanel({
         <div className="ep-body">
           <div className="ep-detail">
             <nav className="ep-nav">
-              {TABS.map((t) => (
+              {TABS.map((tabItem) => (
                 <button
-                  key={t.id}
+                  key={tabItem.id}
                   type="button"
-                  className={`ep-tab${tab === t.id ? " active" : ""}`}
-                  aria-current={tab === t.id ? "page" : undefined}
-                  onClick={() => switchTab(t.id)}
+                  className={`ep-tab${tab === tabItem.id ? " active" : ""}`}
+                  aria-current={tab === tabItem.id ? "page" : undefined}
+                  onClick={() => switchTab(tabItem.id)}
                 >
-                  {t.label}
+                  {t(tabItem.labelKey)}
                 </button>
               ))}
             </nav>
@@ -1110,56 +1139,56 @@ export default function EnvPanel({
                     )}
                     {info !== null && (
                       <>
-                        <SectionCard title="运行状态">
-                          {matches("应用状态", running ? "运行正常" : "无应答") && (
+                        <SectionCard title={t("env.secRuntime")}>
+                          {matches(t("env.appStatus"), running ? t("env.statusRunning") : t("env.statusNoReply")) && (
                             <div className="ep-row">
-                              <div className="ep-row-label">应用状态</div>
+                              <div className="ep-row-label">{t("env.appStatus")}</div>
                               <div className="ep-row-value">{statusRow}</div>
                               <div className="ep-row-actions" />
                             </div>
                           )}
-                          {matches("占用进程 PID", owner?.pid !== undefined ? String(owner.pid) : null) && (
-                            <FieldRow label="占用进程 PID" value={owner?.pid !== undefined ? String(owner.pid) : null} mono onCopy={copy} />
+                          {matches(t("env.ownerPid"), owner?.pid !== undefined ? String(owner.pid) : null) && (
+                            <FieldRow label={t("env.ownerPid")} value={owner?.pid !== undefined ? String(owner.pid) : null} mono onCopy={copy} />
                           )}
-                          {matches("进程命令行", owner?.cmd) && (
-                            <FieldRow label="进程命令行" value={owner?.cmd ?? null} mono onCopy={copy} />
+                          {matches(t("env.procCmdline"), owner?.cmd) && (
+                            <FieldRow label={t("env.procCmdline")} value={owner?.cmd ?? null} mono onCopy={copy} />
                           )}
-                          {matches("归属", owner?.owned ? "本地" : "外部") && (
+                          {matches(t("env.ownership"), owner?.owned ? t("env.ownLocal") : t("env.ownExternal")) && (
                             <FieldRow
-                              label="归属"
-                              value={owner == null ? null : owner.owned ? "本应用子进程(受监护)" : "外部实例(不归本应用管)"}
+                              label={t("env.ownership")}
+                              value={owner == null ? null : owner.owned ? t("env.ownMonitored") : t("env.ownForeign")}
                               onCopy={copy}
                             />
                           )}
-                          {matches("父链", owner?.chain) && (
-                            <FieldRow label="父链" value={owner?.chain ?? null} mono onCopy={copy} />
+                          {matches(t("env.parentChain"), owner?.chain) && (
+                            <FieldRow label={t("env.parentChain")} value={owner?.chain ?? null} mono onCopy={copy} />
                           )}
                         </SectionCard>
 
-                        <SectionCard title="DSH 内核">
+                        <SectionCard title={t("env.secCore")}>
                           {matches("where dsh", dsh?.whereDsh) && (
                             <FieldRow label="where dsh" value={dsh?.whereDsh ?? null} mono openable onCopy={copy} />
                           )}
-                          {matches("自定义路径", dsh?.customPath) && (
-                            <FieldRow label="自定义路径" value={dsh?.customPath ?? null} mono openable onCopy={copy} />
+                          {matches(t("env.customPath"), dsh?.customPath) && (
+                            <FieldRow label={t("env.customPath")} value={dsh?.customPath ?? null} mono openable onCopy={copy} />
                           )}
-                          {matches("本地安装", dsh?.localInstall?.shim) && (
-                            <FieldRow label="本地安装" value={dsh?.localInstall?.shim ?? null} mono openable onCopy={copy} />
+                          {matches(t("env.localInstall"), dsh?.localInstall?.shim) && (
+                            <FieldRow label={t("env.localInstall")} value={dsh?.localInstall?.shim ?? null} mono openable onCopy={copy} />
                           )}
-                          {matches("DSH_CMD 环境变量", dsh?.dshCmd) && (
-                            <FieldRow label="DSH_CMD 环境变量" value={dsh?.dshCmd ?? null} mono onCopy={copy} />
+                          {matches(t("env.dshCmdVar"), dsh?.dshCmd) && (
+                            <FieldRow label={t("env.dshCmdVar")} value={dsh?.dshCmd ?? null} mono onCopy={copy} />
                           )}
-                          {matches("DSH_CWD 环境变量", dsh?.dshCwd) && (
-                            <FieldRow label="DSH_CWD 环境变量" value={dsh?.dshCwd ?? null} mono onCopy={copy} />
+                          {matches(t("env.dshCwdVar"), dsh?.dshCwd) && (
+                            <FieldRow label={t("env.dshCwdVar")} value={dsh?.dshCwd ?? null} mono onCopy={copy} />
                           )}
-                          {matches("npx 回退已授权", dsh?.preferNpx ? "是" : "否") && (
-                            <FieldRow label="npx 回退已授权" value={dsh?.preferNpx ? "是" : "否"} onCopy={copy} />
+                          {matches(t("env.npxAuthorized"), dsh?.preferNpx ? t("env.yes") : t("env.no")) && (
+                            <FieldRow label={t("env.npxAuthorized")} value={dsh?.preferNpx ? t("env.yes") : t("env.no")} onCopy={copy} />
                           )}
                         </SectionCard>
 
-                        <SectionCard title="组件版本">
-                          {matches("DSH 后端", dsh?.webVersion) && (
-                            <FieldRow label="DSH 后端 (dsh web)" value={dsh?.webVersion ?? null} mono onCopy={copy} />
+                        <SectionCard title={t("env.secVersions")}>
+                          {matches(t("env.backendVersion"), dsh?.webVersion) && (
+                            <FieldRow label={t("env.backendVersion")} value={dsh?.webVersion ?? null} mono onCopy={copy} />
                           )}
                           {matches("dsh-desktop-plugin", info.plugins?.dshDesktopPlugin) && (
                             <FieldRow label="dsh-desktop-plugin" value={info.plugins?.dshDesktopPlugin ?? null} mono onCopy={copy} />
@@ -1170,28 +1199,28 @@ export default function EnvPanel({
                           {matches("Node.js", info.node?.version) && (
                             <FieldRow label="Node.js" value={info.node?.version ?? null} mono onCopy={copy} />
                           )}
-                          {matches("DeepSeek Harness 版本", info.app?.version) && (
-                            <FieldRow label="DeepSeek Harness 版本" value={info.app?.version} mono onCopy={copy} />
+                          {matches(t("env.dhVersion"), info.app?.version) && (
+                            <FieldRow label={t("env.dhVersion")} value={info.app?.version} mono onCopy={copy} />
                           )}
                         </SectionCard>
 
-                        <SectionCard title="位置与存储">
-                          {matches("Profile 目录", info.profileDir) && (
-                            <FieldRow label="Profile 目录" value={info.profileDir} mono openable onCopy={copy} />
+                        <SectionCard title={t("env.secStorage")}>
+                          {matches(t("env.profileDir"), info.profileDir) && (
+                            <FieldRow label={t("env.profileDir")} value={info.profileDir} mono openable onCopy={copy} />
                           )}
-                          {matches("工作目录", info.workspaceDir) && (
-                            <FieldRow label="工作目录" value={info.workspaceDir ?? null} mono openable onCopy={copy} />
+                          {matches(t("env.workDir"), info.workspaceDir) && (
+                            <FieldRow label={t("env.workDir")} value={info.workspaceDir ?? null} mono openable onCopy={copy} />
                           )}
-                          {matches("日志目录", info.logDir) && (
-                            <FieldRow label="日志目录" value={info.logDir ?? null} mono openable onCopy={copy} />
+                          {matches(t("env.logDir"), info.logDir) && (
+                            <FieldRow label={t("env.logDir")} value={info.logDir ?? null} mono openable onCopy={copy} />
                           )}
-                          {matches("缓存目录", info.cacheDir) && (
-                            <FieldRow label="缓存目录" value={info.cacheDir ?? null} mono onCopy={copy} />
+                          {matches(t("env.cacheDir"), info.cacheDir) && (
+                            <FieldRow label={t("env.cacheDir")} value={info.cacheDir ?? null} mono onCopy={copy} />
                           )}
-                          {matches("磁盘占用", undefined) && (
+                          {matches(t("env.diskUsage"), undefined) && (
                             <FieldRow
-                              label="磁盘占用 (Profile)"
-                              value={info.profileSizeBytes === null || info.profileSizeBytes === undefined ? null : formatBytes(info.profileSizeBytes)}
+                              label={t("env.diskUsage")}
+                              value={info.profileSizeBytes === null || info.profileSizeBytes === undefined ? null : formatBytes(info.profileSizeBytes, t("common.notDetected"))}
                               onCopy={copy}
                             />
                           )}
@@ -1217,18 +1246,18 @@ export default function EnvPanel({
         {/* 4. Bottom action bar (right-aligned actions only) */}
         <div className="ep-bottom">
           <button type="button" className="ep-secondary" disabled={refreshing} onClick={onRefresh}>
-            {refreshing ? "检测中…" : "刷新检测"}
+            {refreshing ? t("common.checking") : t("panel.refreshCheck")}
           </button>
           <div className="ep-split" ref={restartRef}>
             <button type="button" className="ep-primary ep-split-main" onClick={restart}>
-              重启后端
+              {t("panel.restartBackend")}
             </button>
             <button
               type="button"
               className="ep-primary ep-split-caret"
               aria-haspopup="menu"
               aria-expanded={restartMenuOpen}
-              title="更多重启方式"
+              title={t("panel.moreRestarts")}
               onClick={() => setRestartMenuOpen((o) => !o)}
             >
               <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 6.5 5 2.5 9 6.5" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
@@ -1240,11 +1269,11 @@ export default function EnvPanel({
                   role="menuitem"
                   onClick={() => {
                     setRestartMenuOpen(false);
-                    if (!window.confirm("前后端重启?应用与 DSH 后端都会重启,会话数据不丢失")) return;
+                    if (!window.confirm(t("panel.confirmFullRestart"))) return;
                     invoke("app_full_restart").catch(() => {});
                   }}
                 >
-                  前后端重启
+                  {t("panel.fullRestart")}
                 </button>
               </div>
             )}
@@ -1252,7 +1281,7 @@ export default function EnvPanel({
           <div className="ep-more" ref={moreRef}>
             <div className="ep-split">
               <button type="button" className="ep-secondary ep-split-main" onClick={() => setMoreOpen((o) => !o)}>
-                更多
+                {t("panel.more")}
               </button>
               <button
                 type="button"
@@ -1275,7 +1304,7 @@ export default function EnvPanel({
                       if (dir) invoke("open_path", { path: dir }).catch(() => {});
                     }}
                   >
-                    打开工作目录
+                    {t("panel.openWorkDir")}
                   </button>
                   <button
                     type="button"
@@ -1285,20 +1314,20 @@ export default function EnvPanel({
                       if (info?.logDir) invoke("open_path", { path: info.logDir }).catch(() => {});
                     }}
                   >
-                    打开日志目录
+                    {t("panel.openLogDir")}
                   </button>
                   <button
                     type="button"
                     role="menuitem"
                     onClick={() => {
                       setMoreOpen(false);
-                      copy(JSON.stringify(info ?? {}, null, 2), "环境信息已复制");
+                      copy(JSON.stringify(info ?? {}, null, 2), t("panel.envCopied"));
                     }}
                   >
                     复制全部环境信息
                   </button>
                   <button type="button" role="menuitem" onClick={exportBundle}>
-                    导出诊断信息
+                    {t("panel.exportDiag")}
                   </button>
                 </div>
               )}

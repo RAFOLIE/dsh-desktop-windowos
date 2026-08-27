@@ -389,14 +389,24 @@ fn run_check(app: &AppHandle, on_demand: bool) -> Result<(), String> {
         log_line(&format!(
             "[dsh-desktop] update v{to_version} found but 自动更新已关闭; 面板「立即更新」可手动安装"
         ));
-        toast(&format!("发现新版 v{to_version}(自动更新已关闭,可在环境面板手动更新)"));
+        toast(&format!(
+            "{} v{to_version}({})",
+            dsh::ui_txt("Update available", "发现新版"),
+            dsh::ui_txt(
+                "auto-update is off; install from the panel",
+                "自动更新已关闭,可在环境面板手动更新"
+            )
+        ));
         narrate(json!({ "state": "none" }));
         return Ok(());
     }
     if compare_versions(&to_version, &current) <= 0 {
         narrate(json!({ "state": "none" }));
         if on_demand {
-            toast(&format!("前端已是最新版本 v{current}"));
+            toast(&format!(
+                "{} v{current}",
+                dsh::ui_txt("Already on the latest version", "前端已是最新版本")
+            ));
         }
         sync_plugin_packages();
         return Ok(());
@@ -404,7 +414,10 @@ fn run_check(app: &AppHandle, on_demand: bool) -> Result<(), String> {
 
     narrate(json!({ "state": "downloading", "from": current, "to": to_version }));
     if on_demand {
-        toast(&format!("正在下载前端 v{to_version}…"));
+        toast(&format!(
+            "{} v{to_version}…",
+            dsh::ui_txt("Downloading update", "正在下载前端")
+        ));
     }
     let exe = tauri::utils::platform::current_exe().map_err(|e| format!("current exe: {e}"))?;
     let tmp = std::env::temp_dir().join(format!(
@@ -433,7 +446,11 @@ fn run_check(app: &AppHandle, on_demand: bool) -> Result<(), String> {
     // pnpm must never sit between the swap and the restart. The new
     // process's own launch check (state `none`) performs the sync instead.
     if on_demand {
-        toast(&format!("已更新到 v{to_version},正在重启…"));
+        toast(&format!(
+            "{} v{to_version},{}",
+            dsh::ui_txt("Updated to", "已更新到"),
+            dsh::ui_txt("restarting…", "正在重启…")
+        ));
     }
     log_line(&format!(
         "[dsh-desktop] exe updated {current} -> {to_version}; restarting onto the new build"
@@ -733,7 +750,10 @@ pub fn check_now(app: AppHandle) {
         if let Err(message) = result {
             log_line(&format!("[dsh-desktop] on-demand update check failed: {message}"));
             let _ = app.emit("app-update", json!({ "state": "failed", "message": message }));
-            toast(&format!("检查前端更新失败:{message}"));
+            toast(&format!(
+                "{}:{message}",
+                dsh::ui_txt("Update check failed", "检查前端更新失败")
+            ));
         }
     });
 }

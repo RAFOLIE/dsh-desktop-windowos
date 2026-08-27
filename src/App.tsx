@@ -1,8 +1,17 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import appIcon from "./assets/app-icon.png";
 import EnvPanel, { type EnvInfo } from "./EnvPanel";
+import {
+  LocaleContext,
+  loadUiLocale,
+  applyHtmlLang,
+  makeT,
+  useI18n,
+  type I18n,
+  type Locale,
+} from "./i18n";
 import { applySkin, loadUiTheme, watchSystemSkin } from "./theme";
 import "./App.css";
 
@@ -41,6 +50,7 @@ type Overlay = null | "env" | "log";
  *  instantly. */
 function App() {
   const [status, setStatus] = useState<DshStatus>({ status: "starting" });
+  const [locale, setLocaleState] = useState<Locale>("zh");
   const [customPath, setCustomPath] = useState("");
   const [pathError, setPathError] = useState("");
   const [update, setUpdate] = useState<AppUpdate>({ state: "pending" });
@@ -93,6 +103,29 @@ function App() {
     });
     return () => unwatch?.();
   }, []);
+
+  // Locale: load persisted preference, then wrap everything in LocaleContext.
+  // setLocale persists via app_set_ui_locale (which also rebuilds the tray
+  // menu Rust-side); local state flips only after that succeeds.
+  useEffect(() => {
+    loadUiLocale().then((l) => {
+      setLocaleState(l);
+      applyHtmlLang(l);
+    });
+  }, []);
+  const i18n: I18n = useMemo(() => {
+    const setLocale = (next: Locale) => {
+      invoke("app_set_ui_locale", { locale: next })
+        .then(() => {
+          setLocaleState(next);
+          applyHtmlLang(next);
+        })
+        .catch(() => {});
+    };
+    return { t: makeT(locale), locale, setLocale };
+  }, [locale]);
+  const { t } = i18n;
+
 
   // Registry speed probe runs once when the notfound chooser appears; the
   // faster source becomes the primary install button, the other stays as an
@@ -197,7 +230,8 @@ function App() {
     update.state === "downloading";
 
   return (
-    <main className="shell">
+    <LocaleContext.Provider value={i18n}>
+      <main className="shell">
       <TitleBar
         updateState={update.state}
         checkVisible={checkVisible}
@@ -225,31 +259,29 @@ function App() {
               <div className="state">
                 <div className="spinner" aria-hidden="true" />
                 <div className="text">
-                  正在启动 DSH…
+                  {t("boot.starting")}
                   {status.method ? `(${status.method})` : ""}
                 </div>
                 {status.method?.includes("npx") && (
-                  <div className="detail">首次运行需下载 DSH 包,可能需要几分钟,请耐心等待</div>
+                  <div className="detail">{t("boot.npxFirstRun")}</div>
                 )}
                 {update.state === "downloading" && (
                   <div className="detail">
-                    正在更新应用 v{update.to ?? ""}…完成后自动进入
+                    {t("boot.updateDownloading", { version: update.to ?? "" })}
                   </div>
                 )}
                 {update.state === "done" && (
-                  <div className="detail">已更新到 v{update.to ?? ""},正在自动重启…</div>
+                  <div className="detail">{t("boot.updateDoneRestarting", { version: update.to ?? "" })}</div>
                 )}
                 {update.state === "failed" && (
-                  <div className="detail">
-                    应用更新失败(网络),已跳过——下次启动自动重试,或稍后用托盘「检查前端更新」
-                  </div>
+                  <div className="detail">{t("boot.updateFailedSkipped")}</div>
                 )}
                 <button
                   type="button"
                   className="boot-log-link"
                   onClick={() => setOverlay("log")}
                 >
-                  查看日志
+                  {t("boot.viewLog")}
                 </button>
               </div>
             )}
@@ -259,41 +291,38 @@ function App() {
                 <div className="spinner" aria-hidden="true" />
                 <div className="text">
                   {update.state === "downloading"
-                    ? "等待应用更新完成…"
+                    ? t("boot.waitingUpdate")
                     : update.state === "done"
-                      ? "新版本已就绪,自动重启中…"
-                      : "正在打开…"}
+                      ? t("boot.newReadyRestarting")
+                      : t("boot.opening")}
                 </div>
                 {update.state === "downloading" && (
-                  <div className="detail">正在更新应用 v{update.to ?? ""}…完成后自动进入</div>
+                  <div className="detail">{t("boot.updateDownloading", { version: update.to ?? "" })}</div>
                 )}
                 {update.state === "done" && (
-                  <div className="detail">新版本 v{update.to ?? ""} 已就绪,应用即将自动重启生效</div>
+                  <div className="detail">{t("boot.newVersionReady", { version: update.to ?? "" })}</div>
                 )}
                 {update.state === "failed" && update.message !== undefined && (
-                  <div className="detail">
-                    应用更新失败(网络),已跳过——下次启动自动重试,或稍后用托盘「检查前端更新」
-                  </div>
+                  <div className="detail">{t("boot.updateFailedSkipped")}</div>
                 )}
                 <button
                   type="button"
                   className="boot-log-link"
                   onClick={() => setOverlay("log")}
                 >
-                  查看日志
+                  {t("boot.viewLog")}
                 </button>
               </div>
             )}
 
             {status.status === "notfound" && (
               <div className="state">
-                <div className="text error">未找到本机 DSH</div>
-                <div className="detail">
-                  已搜索 PATH(where dsh,含 npm 全局 dsh/dsh.cmd)、应用目录与用户目录,均未发现 DSH 安装。推荐一键安装:
-                </div>
+                <div className="text error">{t("nf.title")}</div>
+                <div className="detail">{t("nf.detail")}</div>
                 {(() => {
                   const mirrorFastest = npmProbe?.fastest === "npmmirror";
-                  const ms = (v: number | null) => (v === null ? "不通" : `${v}ms`);
+                  const ms = (v: number | null) =>
+                    v === null ? t("nf.msUnreachable") : `${v}ms`;
                   const primaryRegistry: string | null = mirrorFastest
                     ? REGISTRY_MIRROR
                     : npmProbe?.fastest === "npmjs"
@@ -301,13 +330,25 @@ function App() {
                       : null; // probe pending/failed: plain npm default
                   const secondaryRegistry = mirrorFastest ? REGISTRY_OFFICIAL : REGISTRY_MIRROR;
                   const primaryLabel = mirrorFastest
-                    ? `一键全局安装并启动(已选最快:国内镜像 ${ms(npmProbe?.npmmirrorMs ?? null)})`
+                    ? t("nf.installFastest", {
+                        source: t("nf.sourceMirror"),
+                        ms: ms(npmProbe?.npmmirrorMs ?? null),
+                      })
                     : npmProbe?.fastest === "npmjs"
-                      ? `一键全局安装并启动(已选最快:官方源 ${ms(npmProbe.npmjsMs)})`
-                      : "一键全局安装并启动(推荐,约 1-3 分钟)";
+                      ? t("nf.installFastest", {
+                          source: t("nf.sourceOfficial"),
+                          ms: ms(npmProbe.npmjsMs),
+                        })
+                      : t("nf.installPlain");
                   const secondaryLabel = mirrorFastest
-                    ? `改用官方源安装(${ms(npmProbe?.npmjsMs ?? null)})`
-                    : `改用国内镜像安装(${ms(npmProbe?.npmmirrorMs ?? null)})`;
+                    ? t("nf.switchInstall", {
+                        source: t("nf.sourceOfficial"),
+                        ms: ms(npmProbe?.npmjsMs ?? null),
+                      })
+                    : t("nf.switchInstall", {
+                        source: t("nf.sourceMirror"),
+                        ms: ms(npmProbe?.npmmirrorMs ?? null),
+                      });
                   return (
                     <>
                       <button type="button" onClick={() => invoke("dsh_install_npm", { registry: primaryRegistry })}>
@@ -322,12 +363,12 @@ function App() {
                   );
                 })()}
                 <button type="button" onClick={() => invoke("dsh_download")}>
-                  下载并启动(npx 缓存,备选)
+                  {t("nf.downloadNpx")}
                 </button>
                 <input
                   className="path-input"
                   value={customPath}
-                  placeholder="已知安装位置?粘贴 dsh.cmd 完整路径"
+                  placeholder={t("nf.pathPlaceholder")}
                   onChange={(event) => { setCustomPath(event.target.value); setPathError("") }}
                 />
                 <button
@@ -337,37 +378,37 @@ function App() {
                       .catch((error: string) => { setPathError(String(error)) })
                   }}
                 >
-                  使用此路径启动
+                  {t("nf.usePath")}
                 </button>
                 {pathError !== "" && <div className="detail">{pathError}</div>}
                 <button type="button" onClick={() => invoke("dsh_retry")}>
-                  重新检测
+                  {t("nf.reScan")}
                 </button>
                 <button type="button" onClick={() => invoke("dsh_exit")}>
-                  退出
+                  {t("nf.exit")}
                 </button>
                 <div className="detail">
-                  全局安装后终端可用 dsh 命令,应用启动最快且无需网络;不想全局装就选 npx 备选或填路径
+                  {t("nf.globalHint")}
                 </div>
               </div>
             )}
 
             {status.status === "error" && (
               <div className="state">
-                <div className="text error">DSH 启动失败</div>
+                <div className="text error">{t("err.title")}</div>
                 <div className="detail">{status.message}</div>
                 <button type="button" onClick={() => invoke("dsh_retry")}>
-                  重试
+                  {t("err.retry")}
                 </button>
                 <button type="button" onClick={() => invoke("dsh_download")}>
-                  改用 npx 下载启动
+                  {t("err.npxFallback")}
                 </button>
                 <button
                   type="button"
                   className="boot-log-link"
                   onClick={() => setOverlay("log")}
                 >
-                  查看日志
+                  {t("boot.viewLog")}
                 </button>
               </div>
             )}
@@ -385,7 +426,8 @@ function App() {
           />
         )}
       </div>
-    </main>
+      </main>
+    </LocaleContext.Provider>
   );
 }
 
@@ -410,6 +452,7 @@ function TitleBar({
   onTogglePanel: () => void;
   nameBtnRef: React.RefObject<HTMLButtonElement>;
 }) {
+  const { t } = useI18n();
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
@@ -449,7 +492,7 @@ function TitleBar({
           type="button"
           ref={nameBtnRef}
           className={`tb-pill${panelOpen ? " open" : ""}`}
-          title="环境管理"
+          title={t("tb.manage")}
           onClick={onTogglePanel}
         >
           <img className="tb-pill-icon" src={appIcon} alt="" draggable={false} />
@@ -484,7 +527,7 @@ function TitleBar({
       <button
         type="button"
         className="tb-btn"
-        title="最小化"
+        title={t("tb.minimize")}
         onClick={() => invoke("window_minimize").catch(() => {})}
       >
         <svg viewBox="0 0 10 10" aria-hidden="true">
@@ -494,7 +537,7 @@ function TitleBar({
       <button
         type="button"
         className="tb-btn"
-        title={maximized ? "还原" : "最大化"}
+        title={maximized ? t("tb.restore") : t("tb.maximize")}
         onClick={() => invoke("window_toggle_maximize").catch(() => {})}
       >
         {maximized ? (
@@ -511,7 +554,7 @@ function TitleBar({
       <button
         type="button"
         className="tb-btn tb-close"
-        title="关闭(隐藏到托盘,DSH 继续运行)"
+        title={t("tb.closeHint")}
         onClick={() => invoke("window_close").catch(() => {})}
       >
         <svg viewBox="0 0 10 10" aria-hidden="true">

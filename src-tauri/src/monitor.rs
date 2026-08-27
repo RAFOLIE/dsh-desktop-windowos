@@ -138,19 +138,23 @@ fn on_task_finished(app: &AppHandle, session_id: &str) {
         return;
     }
 
-    let title = resolve_session_title(session_id).unwrap_or_else(|| "一个会话".to_string());
-    let body = format!("任务已完成:{title}");
+    let title = resolve_session_title(session_id)
+        .unwrap_or_else(|| crate::dsh::ui_txt("a session", "一个会话").to_string());
+    let body = format!(
+        "{}:{title}",
+        crate::dsh::ui_txt("Task finished", "任务已完成")
+    );
 
     let app2 = app.clone();
     // Short duration: the banner auto-collapses into Action Center if not tapped.
-    // "明白" collapses the banner (any action click dismisses it); "打开窗口"
+    // "ack" collapses the banner (any action click dismisses it); "open window"
     // restores + focuses the window via the in-process activation callback.
     let _ = Toast::new(crate::TOAST_AUMID)
         .title("DSH")
         .text1(&body)
         .duration(ToastDuration::Short)
-        .add_button("打开窗口", "open")
-        .add_button("明白", "ack")
+        .add_button(crate::dsh::ui_txt("Open window", "打开窗口"), "open")
+        .add_button(crate::dsh::ui_txt("Got it", "明白"), "ack")
         .on_activated(move |action| {
             if action.as_deref() == Some("open") {
                 crate::show_main_window(&app2);

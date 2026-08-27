@@ -9,7 +9,7 @@ mod update;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, WindowEvent,
+    AppHandle, Emitter, Manager, WindowEvent, Wry,
 };
 
 /// AppUserModelID stamped on toasts; must match the registry registration in
@@ -53,6 +53,7 @@ fn app_get_shell_settings() -> serde_json::Value {
         "alwaysOnTop": dsh::always_on_top(),
         "autostart": dsh::autostart::enabled(),
         "uiTheme": dsh::ui_theme(),
+        "uiLocale": dsh::ui_locale(),
         "appDataDir": dsh::shell_data_dir(),
     })
 }
@@ -67,6 +68,66 @@ fn app_set_close_action(action: String) {
 #[tauri::command]
 fn app_set_ui_theme(theme: String) {
     dsh::set_ui_theme(&theme);
+}
+
+/// Settings tab「语言 / Language」segment: persist locale and rebuild the
+/// tray menu in place so the switch is truly live everywhere.
+#[tauri::command]
+fn app_set_ui_locale(app: AppHandle, locale: String) {
+    dsh::set_ui_locale(&locale);
+    rebuild_tray_menu(&app);
+}
+
+/// Tray menu built for the current locale (ids stay stable; only labels flip).
+fn build_tray_menu<M: Manager<Wry>>(manager: &M) -> tauri::Result<Menu<Wry>> {
+    let en = dsh::ui_locale() == "en";
+    let tr = |zh: &'static str, en_text: &'static str| -> &'static str {
+        if en {
+            en_text
+        } else {
+            zh
+        }
+    };
+    let open = MenuItem::with_id(manager, "open", tr("Open DSH", "Open DSH"), true, None::<&str>)?;
+    // Backend-only restart: relaunches the dsh web process, not the app.
+    let restart = MenuItem::with_id(
+        manager,
+        "restart",
+        tr("重启 dsh web(后端)", "Restart dsh web (backend)"),
+        true,
+        None::<&str>,
+    )?;
+    let restart_app_item = MenuItem::with_id(
+        manager,
+        "restart-app",
+        tr("前后端重启", "Restart shell & backend"),
+        true,
+        None::<&str>,
+    )?;
+    let update = MenuItem::with_id(
+        manager,
+        "update",
+        tr("检查前端更新", "Check for updates"),
+        true,
+        None::<&str>,
+    )?;
+    let env = MenuItem::with_id(manager, "env", tr("环境信息", "Environment info"), true, None::<&str>)?;
+    let quit = MenuItem::with_id(manager, "quit", tr("退出(关闭 DSH)", "Quit (stops DSH)"), true, None::<&str>)?;
+    Menu::with_items(manager, &[&open, &restart, &restart_app_item, &update, &env, &quit])
+}
+
+/// Swap the existing tray icon's menu after a live locale change. The
+/// on_menu_event handler from setup stays bound (ids are stable).
+fn rebuild_tray_menu(app: &AppHandle) {
+    if let Some(tray) = app.tray_by_id("main-tray") {
+        match build_tray_menu(app).and_then(|menu| tray.set_menu(Some(menu))) {
+            Ok(()) => {}
+            Err(err) => dsh::log_write(
+                dsh::LogLevel::Warn,
+                &format!("[dsh-desktop] tray menu rebuild failed: {err}"),
+            ),
+        }
+    }
 }
 
 #[tauri::command]
@@ -460,7 +521,7 @@ pub fn run() {    tauri::Builder::default()
         }))
         .plugin(tauri_plugin_opener::init())
         .manage(dsh::DshState::new())
-        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, app_set_ui_theme, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
+        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
         .setup(|app| {
             // Session-start log rotation (ComfyUI-style) before anything logs
             // or spawns: previous session archived under a timestamped name.
@@ -530,7 +591,10 @@ pub fn run() {    tauri::Builder::default()
                                 .and_then(|p| p.file_name())
                                 .map(|n| n.to_string_lossy().into_owned())
                                 .unwrap_or_else(|| url.to_string());
-                            crate::update::toast(&format!("下载完成: {name}"));
+                            crate::update::toast(&format!(
+                                "{}: {name}",
+                                dsh::ui_txt("Download finished", "下载完成")
+                            ));
                             let shown = path
                                 .as_ref()
                                 .map(|p| p.display().to_string())
@@ -592,17 +656,9 @@ pub fn run() {    tauri::Builder::default()
                 }
             }
 
-            let open = MenuItem::with_id(app, "open", "Open DSH", true, None::<&str>)?;
-            // Backend-only restart: relaunches the dsh web process, not the
-            // app — the name says so explicitly now (it used to read "重启
-            // DSH", which users reasonably read as "this also updates").
-            let restart = MenuItem::with_id(app, "restart", "重启 dsh web(后端)", true, None::<&str>)?;
-            let restart_app_item =
-                MenuItem::with_id(app, "restart-app", "前后端重启", true, None::<&str>)?;
-            let update = MenuItem::with_id(app, "update", "检查前端更新", true, None::<&str>)?;
-            let env = MenuItem::with_id(app, "env", "环境信息", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "退出(关闭 DSH)", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &restart, &restart_app_item, &update, &env, &quit])?;
+            // Tray menu labels follow the persisted locale (see
+            // app_set_ui_locale for the live-rebuild path).
+            let menu = build_tray_menu(app.handle())?;
 
             TrayIconBuilder::with_id("main-tray")
                 .icon(

@@ -395,6 +395,32 @@ pub(crate) fn set_ui_theme(theme: &str) {
     write_settings(settings);
 }
 
+/// Shell UI locale: "zh"(default) | "en". Drives the tray menu and every
+/// user-facing toast; live switch goes through app_set_ui_locale.
+pub(crate) fn ui_locale() -> String {
+    read_settings()
+        .get("uiLocale")
+        .and_then(|x| x.as_str())
+        .unwrap_or("zh")
+        .to_string()
+}
+
+pub(crate) fn set_ui_locale(locale: &str) {
+    let value = if locale == "en" { "en" } else { "zh" };
+    let mut settings = read_settings();
+    settings["uiLocale"] = json!(value);
+    write_settings(settings);
+}
+
+/// Pick the current-locale string for shell-originated toasts/menus.
+pub(crate) fn ui_txt(en: &'static str, zh: &'static str) -> &'static str {
+    if ui_locale() == "en" {
+        en
+    } else {
+        zh
+    }
+}
+
 /// Directory holding dsh.log / settings.json — the「应用数据目录」row.
 pub(crate) fn shell_data_dir() -> Option<String> {
     log_path()
