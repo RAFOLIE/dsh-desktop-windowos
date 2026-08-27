@@ -311,8 +311,6 @@ function UpdateTab({
   const [upgrading, setUpgrading] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [channel, setChannel] = useState<Channel>("latest");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const check = useCallback(() => {
     setChecking(true);
@@ -326,14 +324,6 @@ function UpdateTab({
     check();
   }, [check]);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onClick = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false);
-    };
-    window.addEventListener("mousedown", onClick);
-    return () => window.removeEventListener("mousedown", onClick);
-  }, [menuOpen]);
 
   const installed = backendVersion === "" ? null : backendVersion.replace(/^v/, "");
   const hasUpdate = channels?.latest != null && installed != null && !installed.startsWith(channels.latest);
@@ -394,41 +384,20 @@ function UpdateTab({
             更新通道
             <span className="ep-help" title="选择全局 dsh 升级时要安装的 npm 发行通道">?</span>
           </div>
-          <div className="ep-select-wrap" ref={menuRef}>
-            <button
-              type="button"
-              className={`ep-select${menuOpen ? " open" : ""}`}
-              aria-haspopup="listbox"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((o) => !o)}
-            >
-              {selChannel.title}
-              <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 3.5 5 7.5 9 3.5" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
-            </button>
-            {menuOpen && (
-              <div className="ep-select-menu" role="listbox">
-                {CHANNELS.map((ch) => (
-                  <button
-                    key={ch.id}
-                    type="button"
-                    role="option"
-                    aria-selected={channel === ch.id}
-                    className={`ep-select-option${channel === ch.id ? " selected" : ""}`}
-                    onClick={() => { setChannel(ch.id); setMenuOpen(false); }}
-                  >
-                    <span className="ep-select-title">{ch.title}</span>
-                    <span className="ep-select-desc">{ch.desc}</span>
-                    {channel === ch.id && (
-                      <svg className="ep-select-check" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-                        <path d="M2.5 7.5 6 11 11.5 4" fill="none" stroke="#4c9aff" strokeWidth="1.6" />
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="ep-select-desc-below">{selChannel.desc}</div>
-          </div>
+          {/* Native select: the OS renders the popup, so it can never be
+              clipped by the panel's scroll containers. */}
+          <select
+            className="ep-select"
+            value={channel}
+            onChange={(event) => setChannel(event.target.value as Channel)}
+          >
+            {CHANNELS.map((ch) => (
+              <option key={ch.id} value={ch.id}>
+                {ch.title}({ch.desc})
+              </option>
+            ))}
+          </select>
+          <div className="ep-select-desc-below">{selChannel.desc}</div>
           <div className="ep-upgrade-row">
             <button type="button" className="ep-secondary" disabled={upgrading || target == null} onClick={() => upgrade(true)}>
               复制并更新
@@ -509,7 +478,8 @@ export default function EnvPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Dismiss the "更多" dropdown on outside clicks.
+
+  // Dismiss the 更多 dropdown on outside clicks.
   useEffect(() => {
     if (!moreOpen) return;
     const onClick = (event: MouseEvent) => {
