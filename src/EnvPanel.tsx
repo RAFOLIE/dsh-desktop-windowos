@@ -417,7 +417,7 @@ function UpdateTab({
     <div className="ep-content-inner">
       <section className="ep-group">
         <div className="ep-version-heading">
-          {"DSH 后端 "}
+          {"DeepSeek Harness "}
           {installed !== null && (
             <span className="ep-version-num">{installed.startsWith("0.1") ? installed : `v${installed}`}</span>
           )}
@@ -513,7 +513,7 @@ function UpdateTab({
 
       <section className="ep-group">
         <div className="ep-version-heading">
-          {"DeepSeek Harness "}
+          {"dsh desktop "}
           {info?.app?.version && <span className="ep-version-num">v{info.app.version}</span>}
           {info?.app?.version && appRel?.latest && verCmp(appRel.latest, info.app.version) > 0 && (
             <span className="ep-badge warn">有可用更新</span>
