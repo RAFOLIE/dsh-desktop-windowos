@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import appIcon from "./assets/app-icon.png";
 import EnvPanel, { type EnvInfo } from "./EnvPanel";
+import { applySkin, loadUiTheme, watchSystemSkin } from "./theme";
 import "./App.css";
 
 /** Rust→frontend lifecycle payloads emitted on the `dsh-status` channel. */
@@ -80,6 +81,18 @@ function App() {
   useEffect(() => {
     refreshEnv();
   }, [refreshEnv]);
+
+  // Shell skin: paint <html data-theme> from the persisted「外观」preference
+  // as early as possible; "system" keeps following OS flips live on the shell
+  // (the embedded webchat scheme updates on next launch — v1.6.34/#8 notes).
+  useEffect(() => {
+    let unwatch: (() => void) | null = null;
+    loadUiTheme().then((pref) => {
+      applySkin(pref);
+      unwatch = watchSystemSkin();
+    });
+    return () => unwatch?.();
+  }, []);
 
   // Registry speed probe runs once when the notfound chooser appears; the
   // faster source becomes the primary install button, the other stays as an

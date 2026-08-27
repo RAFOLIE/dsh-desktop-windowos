@@ -52,6 +52,7 @@ fn app_get_shell_settings() -> serde_json::Value {
         "closeAction": dsh::close_action(),
         "alwaysOnTop": dsh::always_on_top(),
         "autostart": dsh::autostart::enabled(),
+        "uiTheme": dsh::ui_theme(),
         "appDataDir": dsh::shell_data_dir(),
     })
 }
@@ -59,6 +60,13 @@ fn app_get_shell_settings() -> serde_json::Value {
 #[tauri::command]
 fn app_set_close_action(action: String) {
     dsh::set_close_action(&action);
+}
+
+/// Settings tab「外观」segment: persist the shell skin + the scheme handed
+/// to the webview on next launch.
+#[tauri::command]
+fn app_set_ui_theme(theme: String) {
+    dsh::set_ui_theme(&theme);
 }
 
 #[tauri::command]
@@ -452,7 +460,7 @@ pub fn run() {    tauri::Builder::default()
         }))
         .plugin(tauri_plugin_opener::init())
         .manage(dsh::DshState::new())
-        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
+        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, app_set_ui_theme, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
         .setup(|app| {
             // Session-start log rotation (ComfyUI-style) before anything logs
             // or spawns: previous session archived under a timestamped name.
@@ -493,13 +501,18 @@ pub fn run() {    tauri::Builder::default()
             // (issue #5): webview-level, so they work even while focus sits
             // inside the 3080 iframe.
             .zoom_hotkeys_enabled(true)
-            // Color scheme is driven from HKCU personalization instead of
-            // WebView2's default (issue #8: dark page on a light system);
-            // spawn_theme_follow re-applies when the setting flips.
-            .theme(Some(if dsh::system_apps_dark() {
-                tauri::Theme::Dark
-            } else {
-                tauri::Theme::Light
+            // Color scheme comes from the「外观」preference instead of
+            // WebView2's default (issue #8): explicit dark/light wins, and
+            // "system" follows HKCU personalization. Applied at window
+            // CREATION only — tauri-runtime-wry forwards the window theme
+            // into WebView2's preferred color scheme once, at build time
+            // (set_theme after that touches just the native chrome), so a
+            // change needs an app restart to reach the embedded page.
+            .theme(Some(match dsh::ui_theme().as_str() {
+                "light" => tauri::Theme::Light,
+                "dark" => tauri::Theme::Dark,
+                _ if dsh::system_apps_dark() => tauri::Theme::Dark,
+                _ => tauri::Theme::Light,
             }))
             // Session-log/blob downloads from the embedded webchat died
             // silently without a handler (issue #6). Land them in Downloads.

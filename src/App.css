@@ -1126,3 +1126,345 @@ input:focus-visible {
   border-bottom-left-radius: 0;
   border-left: none;
 }
+
+/* --- 「外观」segmented control (跟随系统 / 深色 / 浅色) --- */
+
+.ep-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ep-seg-btn {
+  height: 26px;
+  padding: 0 14px;
+  font-size: 12px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #969dab;
+  white-space: nowrap;
+}
+
+.ep-seg-btn:hover:not(.active):not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: #e7eaf0;
+}
+
+.ep-seg-btn.active {
+  background: rgba(76, 154, 255, 0.2);
+  color: #8db9ff;
+}
+
+/* --- 浅色皮肤（Codex light）---------------------------------------
+   html[data-theme="light"] 由 theme.ts 按 settings.json 的 uiTheme 写入；
+   system 档经 matchMedia 实时解析。只覆盖色彩类属性，布局零改动。 */
+
+[data-theme="light"] .shell,
+[data-theme="light"] .webchat,
+[data-theme="light"] .boot-wrap {
+  background: #ffffff;
+  color: #191b1f;
+}
+
+[data-theme="light"] .state {
+  background: #ffffff;
+  border: 1px solid #e6e6e8;
+  box-shadow: 0 8px 32px rgba(16, 24, 40, 0.08);
+}
+
+[data-theme="light"] .text.error {
+  color: #cf222e;
+}
+
+[data-theme="light"] .detail {
+  color: #656d76;
+}
+
+[data-theme="light"] .btn-secondary {
+  border-color: #d0d4dc;
+  background: #ffffff;
+  color: #5a6070;
+}
+
+[data-theme="light"] .btn-secondary:hover {
+  background: #f2f4f7;
+  border-color: #c3c8d1;
+  color: #191b1f;
+}
+
+[data-theme="light"] .path-input {
+  background: #ffffff;
+  border-color: #d0d4dc;
+  color: #191b1f;
+}
+
+[data-theme="light"] .spinner {
+  border-color: #d7dbe2;
+  border-top-color: #2b6fe0;
+}
+
+[data-theme="light"] .boot-log-link {
+  color: #2b6fe0;
+}
+
+[data-theme="light"] .titlebar {
+  background: #ffffff;
+  border-bottom-color: #e8eaee;
+}
+
+[data-theme="light"] .tb-pill {
+  background: #f2f3f5;
+  border-color: #e2e4e9;
+  color: #1c2026;
+}
+
+[data-theme="light"] .tb-pill:hover {
+  background: #eaecf0;
+  border-color: #b9ccf5;
+}
+
+[data-theme="light"] .tb-pill.open {
+  background: #eaf1fe;
+  border-color: #7aa7f8;
+  color: #1d4fc0;
+}
+
+[data-theme="light"] .tb-pill-chevron {
+  color: #6a7280;
+}
+
+[data-theme="light"] .tb-btn {
+  color: #6a7280;
+}
+
+[data-theme="light"] .tb-btn:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #191b1f;
+}
+
+[data-theme="light"] .ep-backdrop {
+  background: rgba(15, 23, 42, 0.32);
+}
+
+[data-theme="light"] .ep-dialog {
+  background: #ffffff;
+  border-color: #e6e6e8;
+  box-shadow: 0 24px 80px rgba(16, 24, 40, 0.18);
+}
+
+[data-theme="light"] .ep-search,
+[data-theme="light"] .ep-nav,
+[data-theme="light"] .ep-bottom {
+  border-color: #ececef;
+}
+
+[data-theme="light"] .ep-search-icon,
+[data-theme="light"] .ep-select-desc-below {
+  color: #6a7280;
+}
+
+[data-theme="light"] .ep-search input {
+  color: #191b1f;
+}
+
+[data-theme="light"] .ep-search input::placeholder {
+  color: #a0a6b1;
+}
+
+[data-theme="light"] .ep-pill,
+[data-theme="light"] .ep-tool-btn {
+  border-color: #d5d8de;
+  color: #5a6070;
+}
+
+[data-theme="light"] .ep-pill:hover,
+[data-theme="light"] .ep-tool-btn:hover:not(:disabled) {
+  background: #f2f4f7;
+  color: #191b1f;
+}
+
+[data-theme="light"] .ep-pill.active,
+[data-theme="light"] .ep-pill-sm.active {
+  border-color: #7aa7f8;
+  background: #eaf1fe;
+  color: #2b6fe0;
+}
+
+[data-theme="light"] .ep-switch {
+  background: #d8dade;
+}
+
+[data-theme="light"] .ep-switch:hover {
+  background: #cdd0d6;
+}
+
+[data-theme="light"] .ep-switch.on,
+[data-theme="light"] .ep-switch.on:hover {
+  background: #3b82f6;
+}
+
+[data-theme="light"] .ep-switch::after {
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.18);
+}
+
+[data-theme="light"] .ep-tab {
+  color: #6a7280;
+}
+
+[data-theme="light"] .ep-tab:hover:not(.active) {
+  background: #f2f4f7;
+  color: #191b1f;
+}
+
+[data-theme="light"] .ep-tab.active {
+  color: #2b6fe0;
+  border-bottom-color: #2b6fe0;
+}
+
+[data-theme="light"] .ep-group-title,
+[data-theme="light"] .ep-row-label,
+[data-theme="light"] .ep-channel-title {
+  color: #6a7280;
+}
+
+[data-theme="light"] .ep-card {
+  background: #ffffff;
+  border-color: #e6e6e8;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+[data-theme="light"] .ep-row + .ep-row {
+  border-top-color: #ececef;
+}
+
+[data-theme="light"] .ep-row-value,
+[data-theme="light"] .ep-version-heading,
+[data-theme="light"] .ep-select-title {
+  color: #191b1f;
+}
+
+[data-theme="light"] .ep-row-value.absent {
+  color: #a0a6b1;
+}
+
+[data-theme="light"] .ep-icon-btn:hover:not(:disabled) {
+  border-color: #d5d8de;
+  background: #f2f4f7;
+  color: #191b1f;
+}
+
+[data-theme="light"] .ep-error {
+  border-color: rgba(207, 34, 46, 0.35);
+  background: rgba(207, 34, 46, 0.05);
+  color: #cf222e;
+}
+
+/* Log console stays light too — GitHub-light level palette. */
+[data-theme="light"] .ep-log-console {
+  background: #fafafa;
+  border-color: #e6e6e8;
+  color: #57606a;
+}
+
+[data-theme="light"] .log-banner {
+  color: #0550ae;
+}
+
+[data-theme="light"] .log-info {
+  color: #57606a;
+}
+
+[data-theme="light"] .log-warn {
+  color: #9a6700;
+}
+
+[data-theme="light"] .log-error {
+  color: #cf222e;
+}
+
+[data-theme="light"] .ep-secondary {
+  border-color: #d5d8de;
+  color: #454b56;
+}
+
+[data-theme="light"] .ep-secondary:hover:not(:disabled) {
+  background: #f2f4f7;
+}
+
+[data-theme="light"] .ep-primary {
+  background: #2b6fe0;
+  border-color: #2b6fe0;
+}
+
+[data-theme="light"] .ep-primary:hover {
+  background: #2563d6;
+  border-color: #2563d6;
+}
+
+[data-theme="light"] .ep-menu,
+[data-theme="light"] .ep-toast,
+[data-theme="light"] .ep-select-menu {
+  background: #ffffff;
+  border-color: #e6e6e8;
+  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.14);
+}
+
+[data-theme="light"] .ep-menu button {
+  color: #33383f;
+}
+
+[data-theme="light"] .ep-menu button:hover {
+  background: #eaf1fe;
+  color: #191b1f;
+}
+
+[data-theme="light"] .ep-toast {
+  color: #191b1f;
+}
+
+[data-theme="light"] .ep-badge.ok {
+  border-color: rgba(26, 127, 55, 0.4);
+  color: #1a7f37;
+}
+
+[data-theme="light"] .ep-badge.warn {
+  border-color: rgba(154, 103, 0, 0.4);
+  color: #9a6700;
+}
+
+[data-theme="light"] .ep-hint-inline,
+[data-theme="light"] .ep-select-desc {
+  color: #6a7280;
+}
+
+[data-theme="light"] .ep-version-num {
+  color: #2b6fe0;
+}
+
+[data-theme="light"] .ep-select {
+  background: #fafbfc;
+  border-color: #d5d8de;
+  color: #191b1f;
+}
+
+[data-theme="light"] .ep-select svg,
+[data-theme="light"] .ep-select svg * {
+  color: #6a7280;
+}
+
+[data-theme="light"] .ep-select-menu::-webkit-scrollbar-thumb {
+  background: #d4d6db;
+}
+
+[data-theme="light"] .ep-select-option:hover {
+  background: #f2f4f7;
+}
+
+[data-theme="light"] .ep-select-option.selected {
+  background: #eaf1fe;
+}

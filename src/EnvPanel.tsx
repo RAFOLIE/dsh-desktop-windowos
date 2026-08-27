@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
+import { applySkin, type UiTheme } from "./theme";
 
 /** Rust-side env_info payload (all fields nullable — probes degrade). */
 export type EnvInfo = {
@@ -678,6 +679,7 @@ type ShellSettings = {
   closeAction: "tray" | "exit";
   alwaysOnTop: boolean;
   autostart: boolean;
+  uiTheme: UiTheme;
 };
 
 const CLOSE_ACTIONS: ChannelOption[] = [
@@ -732,18 +734,30 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
       closeAction?: string;
       alwaysOnTop?: boolean;
       autostart?: boolean;
+      uiTheme?: string;
     }>("app_get_shell_settings")
       .then((r) => {
         setCfg({
           closeAction: r.closeAction === "exit" ? "exit" : "tray",
           alwaysOnTop: r.alwaysOnTop === true,
           autostart: r.autostart === true,
+          uiTheme:
+            r.uiTheme === "dark" || r.uiTheme === "light" ? r.uiTheme : "system",
         });
       })
       .catch(() => {});
   }, []);
 
   // 每个 saver 都在命令成功返回后才更新本地 state——写失败就不骗 UI。
+  const saveUiTheme = (pref: UiTheme) => {
+    invoke("app_set_ui_theme", { theme: pref })
+      .then(() => {
+        setCfg((c) => (c ? { ...c, uiTheme: pref } : c));
+        applySkin(pref);
+      })
+      .catch(() => {});
+  };
+
   const saveClose = (id: string) => {
     invoke("app_set_close_action", { action: id })
       .then(() => setCfg((c) => (c ? { ...c, closeAction: id === "exit" ? "exit" : "tray" } : c)))
@@ -777,6 +791,39 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
 
   return (
     <div className="ep-content-inner">
+      <section className="ep-group">
+        <div className="ep-group-title">外观</div>
+        <div className="ep-card">
+          <div className="ep-row">
+            <div className="ep-row-label">界面主题</div>
+            <div className="ep-row-value">壳界面即时生效；内嵌网页在重启应用后跟随所选配色</div>
+            <div className="ep-row-actions">
+              <div className="ep-seg" role="radiogroup" aria-label="界面主题">
+                {(
+                  [
+                    ["system", "跟随系统"],
+                    ["dark", "深色"],
+                    ["light", "浅色"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={cfg?.uiTheme === value}
+                    className={`ep-seg-btn${cfg?.uiTheme === value ? " active" : ""}`}
+                    disabled={cfg === null}
+                    onClick={() => saveUiTheme(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="ep-group">
         <div className="ep-group-title">窗口</div>
         <div className="ep-card">

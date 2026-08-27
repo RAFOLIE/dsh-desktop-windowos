@@ -300,7 +300,12 @@ fn settings_path() -> PathBuf {
 fn read_settings() -> Value {
     std::fs::read_to_string(settings_path())
         .ok()
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|text| {
+            // Tolerate a UTF-8 BOM (Notepad/PowerShell rewrites leave one);
+            // serde_json rejects it and would silently reset every pref.
+            let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
+            serde_json::from_str::<Value>(text).ok()
+        })
         .unwrap_or_else(|| json!({}))
 }
 
@@ -365,6 +370,28 @@ pub(crate) fn always_on_top() -> bool {
 pub(crate) fn set_always_on_top(on: bool) {
     let mut settings = read_settings();
     settings["alwaysOnTop"] = json!(on);
+    write_settings(settings);
+}
+
+/// Shell UI theme: "system"(default) | "dark" | "light". Read at window
+/// creation to pin the webview color scheme (issue #8), and served to the
+/// settings tab's「外观」segmented control.
+pub(crate) fn ui_theme() -> String {
+    read_settings()
+        .get("uiTheme")
+        .and_then(|x| x.as_str())
+        .unwrap_or("system")
+        .to_string()
+}
+
+pub(crate) fn set_ui_theme(theme: &str) {
+    let value = match theme {
+        "dark" => "dark",
+        "light" => "light",
+        _ => "system",
+    };
+    let mut settings = read_settings();
+    settings["uiTheme"] = json!(value);
     write_settings(settings);
 }
 
