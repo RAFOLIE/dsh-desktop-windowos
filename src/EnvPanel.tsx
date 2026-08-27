@@ -981,7 +981,7 @@ export default function EnvPanel({
           </button>
           <div className="ep-split" ref={restartRef}>
             <button type="button" className="ep-primary ep-split-main" onClick={restart}>
-              重启
+              重启后端
             </button>
             <button
               type="button"
