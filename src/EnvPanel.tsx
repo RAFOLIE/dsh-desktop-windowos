@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { applySkin, type UiTheme } from "./theme";
-import { useI18n, type T } from "./i18n";
+import { useI18n, type Locale, type T } from "./i18n";
 
 /** Rust-side env_info payload (all fields nullable — probes degrade). */
 export type EnvInfo = {
@@ -322,11 +322,14 @@ function ChannelPicker({
   onChange,
   options,
   disabled,
+  hideDesc,
 }: {
   value: string;
   onChange: (id: string) => void;
   options: ChannelOption[];
   disabled?: boolean;
+  /** Collapse the helper line under the trigger (compact rows, e.g. language). */
+  hideDesc?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null);
@@ -375,7 +378,7 @@ function ChannelPicker({
         {sel.title}
         <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 3.5 5 7.5 9 3.5" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
       </button>
-      <div className="ep-select-desc-below">{sel.desc}</div>
+      {!hideDesc && <div className="ep-select-desc-below">{sel.desc}</div>}
       {open &&
         pos !== null &&
         createPortal(
@@ -695,24 +698,30 @@ const closeActions = (t: T): ChannelOption[] => [
   { id: "exit", title: t("set.closeExit"), desc: t("set.closeExitDesc") },
 ];
 
-/** One boolean preference row: label / 说明 / 开关 pill(改动即时落盘). */
+/** One boolean preference row: label(+? hover help) / 开关 (改动即时落盘). */
 function PrefRow({
   label,
-  desc,
+  help,
   active,
   disabled,
   onToggle,
 }: {
   label: string;
-  desc: string;
+  /** Hover hint rendered as a ? beside the label instead of visible text. */
+  help?: string;
   active: boolean;
   disabled?: boolean;
   onToggle: () => void;
 }) {
   return (
     <div className="ep-row">
-      <div className="ep-row-label">{label}</div>
-      <div className="ep-row-value">{desc}</div>
+      <div className="ep-row-label">
+        {label}
+        {help && (
+          <span className="ep-help" title={help}>?</span>
+        )}
+      </div>
+      <div className="ep-row-value" />
       <div className="ep-row-actions">
         <button
           type="button"
@@ -806,8 +815,11 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
         <div className="ep-group-title">{t("set.groupAppearance")}</div>
         <div className="ep-card">
           <div className="ep-row">
-            <div className="ep-row-label">{t("set.theme")}</div>
-            <div className="ep-row-value">{t("set.themeDesc")}</div>
+            <div className="ep-row-label">
+              {t("set.theme")}
+              <span className="ep-help" title={t("set.themeDesc")}>?</span>
+            </div>
+            <div className="ep-row-value" />
             <div className="ep-row-actions">
               <div className="ep-seg" role="radiogroup" aria-label={t("set.theme")}>
                 {(["system", "dark", "light"] as const).map((value) => (
@@ -827,22 +839,24 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
             </div>
           </div>
           <div className="ep-row">
-            <div className="ep-row-label">{t("set.language")}</div>
-            <div className="ep-row-value">{t("set.langDesc")}</div>
+            <div className="ep-row-label">
+              {t("set.language")}
+              <span className="ep-help" title={t("set.langDesc")}>?</span>
+            </div>
+            <div className="ep-row-value" />
             <div className="ep-row-actions">
-              <div className="ep-seg" role="radiogroup" aria-label={t("set.language")}>
-                {(["zh", "en"] as const).map((l) => (
-                  <button
-                    key={l}
-                    type="button"
-                    role="radio"
-                    aria-checked={locale === l}
-                    className={`ep-seg-btn${locale === l ? " active" : ""}`}
-                    onClick={() => setLocale(l)}
-                  >
-                    {l === "zh" ? "中文" : "English"}
-                  </button>
-                ))}
+              {/* Dropdown so future locales are one option away; names stay
+                  in their own language by convention. */}
+              <div className="ep-select-wrap" style={{ width: 150, margin: 0 }}>
+                <ChannelPicker
+                  value={locale}
+                  onChange={(l) => setLocale(l as Locale)}
+                  options={[
+                    { id: "zh", title: "中文", desc: "" },
+                    { id: "en", title: "English", desc: "" },
+                  ]}
+                  hideDesc
+                />
               </div>
             </div>
           </div>
@@ -854,14 +868,14 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
         <div className="ep-card">
           <PrefRow
             label={t("set.alwaysOnTop")}
-            desc={t("set.alwaysOnTopDesc")}
+            help={t("set.alwaysOnTopDesc")}
             active={cfg?.alwaysOnTop ?? false}
             disabled={cfg === null}
             onToggle={saveAlwaysOnTop}
           />
           <PrefRow
             label={t("set.autostart")}
-            desc={t("set.autostartDesc")}
+            help={t("set.autostartDesc")}
             active={cfg?.autostart ?? false}
             disabled={cfg === null || busyAutostart}
             onToggle={saveAutostart}
@@ -886,7 +900,7 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
         <div className="ep-card">
           <PrefRow
             label={t("set.rememberTab")}
-            desc={t("set.rememberTabDesc")}
+            help={t("set.rememberTabDesc")}
             active={rememberTab}
             onToggle={saveRememberTab}
           />
@@ -1324,7 +1338,7 @@ export default function EnvPanel({
                       copy(JSON.stringify(info ?? {}, null, 2), t("panel.envCopied"));
                     }}
                   >
-                    复制全部环境信息
+                    {t("panel.copyAllEnv")}
                   </button>
                   <button type="button" role="menuitem" onClick={exportBundle}>
                     {t("panel.exportDiag")}
