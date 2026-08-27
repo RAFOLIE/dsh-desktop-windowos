@@ -669,6 +669,39 @@ export default function EnvPanel({
   const searchRef = useRef<HTMLInputElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
 
+  // --- resizable dialog width (persisted; clamped) ---
+  const MIN_W = 720;
+  const DEFAULT_W = 1150;
+  const maxW = () => Math.min(1440, window.innerWidth - 96);
+  const clampW = (w: number) => Math.max(MIN_W, Math.min(w, maxW()));
+  const loadW = (): number => {
+    const raw = Number(localStorage.getItem("epDialogWidth"));
+    return Number.isFinite(raw) && raw >= MIN_W ? clampW(raw) : DEFAULT_W;
+  };
+  const [dialogWidth, setDialogWidth] = useState<number>(loadW);
+  const saveW = (w: number) => { localStorage.setItem("epDialogWidth", String(Math.round(w))); };
+  const startResize = (edge: "left" | "right") => (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startW = dialogWidth;
+    const el = event.currentTarget;
+    el.setPointerCapture(event.pointerId);
+    document.body.style.userSelect = "none";
+    const onMove = (e: PointerEvent) => {
+      const dx = e.clientX - startX;
+      setDialogWidth(clampW(edge === "right" ? startW + dx : startW - dx));
+    };
+    const onUp = () => {
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointercancel", onUp);
+      document.body.style.userSelect = "";
+    };
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointercancel", onUp);
+  };
+
   // Esc closes; focus starts in the search box (spec: keyboard support).
   useEffect(() => {
     searchRef.current?.focus();
@@ -749,7 +782,26 @@ export default function EnvPanel({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="ep-dialog" role="dialog" aria-modal="true" aria-label="环境管理">
+      <div
+        className="ep-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="环境管理"
+        style={{ width: dialogWidth }}
+      >
+        {/* edge resize handles: drag to adjust width, double-click resets */}
+        <div
+          className="ep-resize-handle left"
+          title="拖动调整宽度 · 双击重置"
+          onPointerDown={startResize("left")}
+          onDoubleClick={() => { setDialogWidth(DEFAULT_W); saveW(DEFAULT_W); }}
+        />
+        <div
+          className="ep-resize-handle right"
+          title="拖动调整宽度 · 双击重置"
+          onPointerDown={startResize("right")}
+          onDoubleClick={() => { setDialogWidth(DEFAULT_W); saveW(DEFAULT_W); }}
+        />
         {/* 1. Search bar */}
         <div className="ep-search">
           <svg className="ep-search-icon" viewBox="0 0 16 16" aria-hidden="true">

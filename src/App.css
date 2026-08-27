@@ -327,12 +327,13 @@ input:focus-visible {
   position: relative;
   display: flex;
   flex-direction: column;
-  /* 用户定版:按参考图宽度收窄,不再全屏铺开 */
+  /* inline width wins (user-resized, persisted); these are fallback + guards */
   width: min(1150px, calc(100vw - 96px));
+  max-width: calc(100vw - 32px);
   height: calc(100vh - 80px);
   max-height: 1080px;
   min-height: 600px;
-  min-width: 0;
+  min-width: min(720px, calc(100vw - 32px));
   background: #151821;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
@@ -790,9 +791,32 @@ input:focus-visible {
 
 /* --- Responsive --- */
 
+/* Edge resize handles for the dialog width (hidden on narrow screens) */
+.ep-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  cursor: ew-resize;
+  z-index: 40;
+  touch-action: none;
+}
+
+.ep-resize-handle.left {
+  left: 0;
+}
+
+.ep-resize-handle.right {
+  right: 0;
+}
+
 @media (max-width: 899px) {
   .ep-backdrop {
     padding: 16px;
+  }
+
+  .ep-resize-handle {
+    display: none;
   }
 
   .ep-row {
