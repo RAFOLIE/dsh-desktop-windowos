@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 
 /** Rust-side env_info payload (all fields nullable — probes degrade). */
@@ -311,6 +312,9 @@ function UpdateTab({
   const [upgrading, setUpgrading] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [channel, setChannel] = useState<Channel>("latest");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ left: number; top: number; width: number } | null>(null);
+  const channelBtnRef = useRef<HTMLButtonElement>(null);
 
   const check = useCallback(() => {
     setChecking(true);
@@ -330,6 +334,43 @@ function UpdateTab({
   const selChannel = CHANNELS.find((x) => x.id === channel)!;
   const target = channel === "latest" ? channels?.latest : channels?.next;
   const installCmd = `npm i -g @deepseek-ai/dsh@${channel}`;
+
+  // Open/close the channel menu; compute a viewport-fixed anchor so the
+  // portal menu can never be clipped by the panel's scroll containers.
+  const toggleChannelMenu = () => {
+    setMenuOpen((open) => {
+      if (!open && channelBtnRef.current) {
+        const r = channelBtnRef.current.getBoundingClientRect();
+        setMenuPos({ left: r.left, top: r.bottom + 6, width: r.width });
+      }
+      return !open;
+    });
+  };
+
+  // Any scroll or resize invalidates the fixed anchor — just close.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [menuOpen]);
+
+  // Outside clicks close it; clicks inside the portalled menu do not.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (event: MouseEvent) => {
+      const t = event.target as HTMLElement;
+      if (!t.closest(".ep-select-menu") && !channelBtnRef.current?.contains(t)) {
+        setMenuOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
 
   const upgrade = (alsoCopy: boolean) => {
     const label = channel === "latest" ? "npm latest(稳定版)" : "npm next(rc 预发布)";
@@ -384,19 +425,18 @@ function UpdateTab({
             更新通道
             <span className="ep-help" title="选择全局 dsh 升级时要安装的 npm 发行通道">?</span>
           </div>
-          {/* Native select: the OS renders the popup, so it can never be
-              clipped by the panel's scroll containers. */}
-          <select
-            className="ep-select"
-            value={channel}
-            onChange={(event) => setChannel(event.target.value as Channel)}
+          {/* Anchored trigger; menu renders at body level (portal, fixed) */}
+          <button
+            type="button"
+            ref={channelBtnRef}
+            className={`ep-select${menuOpen ? " open" : ""}`}
+            aria-haspopup="listbox"
+            aria-expanded={menuOpen}
+            onClick={toggleChannelMenu}
           >
-            {CHANNELS.map((ch) => (
-              <option key={ch.id} value={ch.id}>
-                {ch.title}({ch.desc})
-              </option>
-            ))}
-          </select>
+            {selChannel.title}
+            <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 3.5 5 7.5 9 3.5" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
+          </button>
           <div className="ep-select-desc-below">{selChannel.desc}</div>
           <div className="ep-upgrade-row">
             <button type="button" className="ep-secondary" disabled={upgrading || target == null} onClick={() => upgrade(true)}>
@@ -409,6 +449,41 @@ function UpdateTab({
         </div>
 
         {note !== null && <div className="detail">{note}</div>}
+
+        {menuOpen && menuPos !== null &&
+          createPortal(
+            <div
+              className="ep-select-menu"
+              role="listbox"
+              style={{
+                position: "fixed",
+                left: menuPos.left,
+                top: menuPos.top,
+                width: menuPos.width,
+                zIndex: 3000,
+              }}
+            >
+              {CHANNELS.map((ch) => (
+                <button
+                  key={ch.id}
+                  type="button"
+                  role="option"
+                  aria-selected={channel === ch.id}
+                  className={`ep-select-option${channel === ch.id ? " selected" : ""}`}
+                  onClick={() => { setChannel(ch.id); setMenuOpen(false); }}
+                >
+                  <span className="ep-select-title">{ch.title}</span>
+                  <span className="ep-select-desc">{ch.desc}</span>
+                  {channel === ch.id && (
+                    <svg className="ep-select-check" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                      <path d="M2.5 7.5 6 11 11.5 4" fill="none" stroke="#4c9aff" strokeWidth="1.6" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )}
       </section>
 
       <section className="ep-group">
