@@ -1041,3 +1041,25 @@ input:focus-visible {
   font-size: 13px;
   color: #969dab;
 }
+
+/* Split 重启 button: main action + caret revealing 前后端重启 */
+.ep-split {
+  position: relative;
+  display: flex;
+}
+
+.ep-split .ep-split-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.ep-split-caret {
+  width: 36px;
+  padding: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

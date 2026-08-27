@@ -665,9 +665,11 @@ export default function EnvPanel({
   const [tab, setTab] = useState<Tab>(initialTab);
   const [query, setQuery] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [restartMenuOpen, setRestartMenuOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
+  const restartRef = useRef<HTMLDivElement>(null);
 
   // --- resizable dialog width (persisted; clamped) ---
   const MIN_W = 720;
@@ -720,9 +722,10 @@ export default function EnvPanel({
   useEffect(() => {
     if (!moreOpen) return;
     const onClick = (event: MouseEvent) => {
-      if (moreRef.current && !moreRef.current.contains(event.target as Node)) {
-        setMoreOpen(false);
-      }
+      const inMore = moreRef.current?.contains(event.target as Node) ?? false;
+      const inRestart = restartRef.current?.contains(event.target as Node) ?? false;
+      if (!inMore) setMoreOpen(false);
+      if (!inRestart) setRestartMenuOpen(false);
     };
     window.addEventListener("mousedown", onClick);
     return () => window.removeEventListener("mousedown", onClick);
@@ -976,9 +979,36 @@ export default function EnvPanel({
           <button type="button" className="ep-secondary" disabled={refreshing} onClick={onRefresh}>
             {refreshing ? "检测中…" : "刷新检测"}
           </button>
-          <button type="button" className="ep-primary" onClick={restart}>
-            重启
-          </button>
+          <div className="ep-split" ref={restartRef}>
+            <button type="button" className="ep-primary ep-split-main" onClick={restart}>
+              重启
+            </button>
+            <button
+              type="button"
+              className="ep-primary ep-split-caret"
+              aria-haspopup="menu"
+              aria-expanded={restartMenuOpen}
+              title="更多重启方式"
+              onClick={() => setRestartMenuOpen((o) => !o)}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 6.5 5 2.5 9 6.5" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
+            </button>
+            {restartMenuOpen && (
+              <div className="ep-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setRestartMenuOpen(false);
+                    if (!window.confirm("前后端重启?应用与 DSH 后端都会重启,会话数据不丢失")) return;
+                    invoke("app_full_restart").catch(() => {});
+                  }}
+                >
+                  前后端重启
+                </button>
+              </div>
+            )}
+          </div>
           <div className="ep-more" ref={moreRef}>
             <button type="button" className="ep-secondary" onClick={() => setMoreOpen((o) => !o)}>
               更多 ⌃
@@ -1018,17 +1048,6 @@ export default function EnvPanel({
                   </button>
                   <button type="button" role="menuitem" onClick={exportBundle}>
                     导出诊断信息
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setMoreOpen(false);
-                      if (!window.confirm("前后端重启?应用与 DSH 后端都会重启,会话数据不丢失")) return;
-                      invoke("app_full_restart").catch(() => {});
-                    }}
-                  >
-                    前后端重启
                   </button>
                 </div>
               )}
