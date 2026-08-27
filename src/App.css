@@ -478,6 +478,32 @@ input:focus-visible {
   cursor: not-allowed;
 }
 
+/* Circular hover-help badge (title carries the explanation). Was an unstyled
+   span for years — rendered as a bare "?" glued to the label. */
+.ep-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-left: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  color: #8b949e;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: help;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.ep-help:hover {
+  border-color: #4c9aff;
+  color: #4c9aff;
+}
+
 /* Text tool buttons (log toolbar etc.). */
 .ep-tool-btn {
   height: 32px;
@@ -1310,6 +1336,16 @@ input:focus-visible {
 
 [data-theme="light"] .ep-switch::after {
   box-shadow: 0 1px 3px rgba(16, 24, 40, 0.18);
+}
+
+[data-theme="light"] .ep-help {
+  border-color: rgba(15, 23, 42, 0.28);
+  color: #6a7280;
+}
+
+[data-theme="light"] .ep-help:hover {
+  border-color: #2b6fe0;
+  color: #2b6fe0;
 }
 
 [data-theme="light"] .ep-tab {
