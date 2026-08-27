@@ -687,15 +687,18 @@ export default function EnvPanel({
     const el = event.currentTarget;
     el.setPointerCapture(event.pointerId);
     document.body.style.userSelect = "none";
+    let last = startW;
     const onMove = (e: PointerEvent) => {
       const dx = e.clientX - startX;
-      setDialogWidth(clampW(edge === "right" ? startW + dx : startW - dx));
+      last = clampW(edge === "right" ? startW + dx : startW - dx);
+      setDialogWidth(last);
     };
     const onUp = () => {
       el.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerup", onUp);
       el.removeEventListener("pointercancel", onUp);
       document.body.style.userSelect = "";
+      saveW(last); // 关键:松手即落盘,重开面板/重启应用都保持
     };
     el.addEventListener("pointermove", onMove);
     el.addEventListener("pointerup", onUp);
