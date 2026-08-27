@@ -345,10 +345,21 @@ fn run_check(app: &AppHandle, on_demand: bool) -> Result<(), String> {
         let _ = window.set_title(&format!("DeepSeek Harness v{current}"));
     }
 
+    // Config gates: autoUpdate=false skips install at startup (announced);
+    // channel=dev also considers prerelease-tagged releases.
+    let (channel, auto_update) = crate::dsh::app_update_config();
+
     narrate(json!({ "state": "checking" }));
-    let api_url = format!("https://api.github.com/repos/{REPO_SLUG}/releases/latest");
-    let body = api_get_json(&api_url)
-        .ok_or_else(|| format!("github api unreachable directly and via proxies: {api_url}"))?;
+    let body = if channel == "dev" {
+        api_get_json(&format!(
+            "https://api.github.com/repos/{REPO_SLUG}/releases?per_page=10"
+        ))
+        .and_then(|v| v.as_array()?.first().cloned())
+        .filter(|rel| !rel["draft"].as_bool().unwrap_or(true))
+    } else {
+        api_get_json(&format!("https://api.github.com/repos/{REPO_SLUG}/releases/latest"))
+    }
+    .ok_or_else(|| "github api unreachable directly and via proxies".to_string())?;
 
     // (version, url, size, digest) — the metadata powers the integrity check
     // that makes mirror downloads trustworthy.
@@ -366,9 +377,22 @@ fn run_check(app: &AppHandle, on_demand: bool) -> Result<(), String> {
         }
     }
     let Some((to_version, url, asset_size, asset_digest)) = latest else {
-        narrate(json!({ "state": "failed", "message": "latest release has no versioned exe asset" }));
+        narrate(json!({ "state": "failed", "message": "target release has no versioned exe asset" }));
         return Ok(());
     };
+    // Stable channel never jumps onto a prerelease even if it matched above.
+    if channel != "dev" && to_version.contains('-') {
+        narrate(json!({ "state": "none" }));
+        return Ok(());
+    }
+    if !auto_update && !on_demand {
+        log_line(&format!(
+            "[dsh-desktop] update v{to_version} found but 自动更新已关闭; 面板「立即更新」可手动安装"
+        ));
+        toast(&format!("发现新版 v{to_version}(自动更新已关闭,可在环境面板手动更新)"));
+        narrate(json!({ "state": "none" }));
+        return Ok(());
+    }
     if compare_versions(&to_version, &current) <= 0 {
         narrate(json!({ "state": "none" }));
         if on_demand {
@@ -634,6 +658,24 @@ pub fn upgrade_backend(channel: Option<String>) -> Result<String, String> {
     } else {
         Err(format!("升级到 {} 失败——详见日志标签页", tag))
     }
+}
+
+/// 更新 tab: persisted shell update prefs.
+#[tauri::command]
+fn app_get_update_config() -> serde_json::Value {
+    let (channel, auto) = crate::dsh::app_update_config();
+    json!({ "channel": channel, "autoUpdate": auto })
+}
+
+#[tauri::command]
+fn app_set_update_config(channel: Option<String>, autoUpdate: Option<bool>) {
+    let (cur_channel, cur_auto) = crate::dsh::app_update_config();
+    let ch = channel.unwrap_or(cur_channel);
+    let au = autoUpdate.unwrap_or(cur_auto);
+    crate::dsh::set_app_update_config(&ch, au);
+    log_line(&format!(
+        "[dsh-desktop] update config saved: channel={ch}, autoUpdate={au}"
+    ));
 }
 
 /// Latest stable release tag for the 更新 tab's app card (same GitHub

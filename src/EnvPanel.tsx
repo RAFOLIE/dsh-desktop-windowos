@@ -323,6 +323,8 @@ function UpdateTab({
   const [appRel, setAppRel] = useState<{ latest?: string; checkedAt?: string } | null>(null);
   const [checkingApp, setCheckingApp] = useState(false);
   const [appUpdating, setAppUpdating] = useState(false);
+  const [cfg, setCfg] = useState<{ channel: "stable" | "dev"; autoUpdate: boolean } | null>(null);
+  const [savingCfg, setSavingCfg] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [channel, setChannel] = useState<Channel>("latest");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -351,7 +353,24 @@ function UpdateTab({
 
   useEffect(() => {
     checkApp();
+    invoke<{ channel: "stable" | "dev"; autoUpdate: boolean }>("app_get_update_config")
+      .then(setCfg)
+      .catch(() => {});
   }, [checkApp]);
+
+  // Persist a pref change; the new value drives the next startup check.
+  const saveCfg = (patch: { channel?: "stable" | "dev"; autoUpdate?: boolean }) => {
+    if (!cfg) return;
+    const next = {
+      channel: patch.channel ?? cfg.channel,
+      autoUpdate: patch.autoUpdate ?? cfg.autoUpdate,
+    };
+    setSavingCfg(true);
+    invoke("app_set_update_config", { channel: next.channel, autoUpdate: next.autoUpdate })
+      .then(() => setCfg(next))
+      .catch(() => {})
+      .finally(() => setSavingCfg(false));
+  };
 
 
   const installed = backendVersion === "" ? null : backendVersion.replace(/^v/, "");
@@ -545,9 +564,44 @@ function UpdateTab({
             </div>
           </div>
         </div>
+        <div className="ep-card ep-channel-card">
+          <div className="ep-channel-title">
+            更新通道
+            <span className="ep-help" title="桌面壳自动更新追踪的发行通道">?</span>
+          </div>
+          <select
+            className="ep-select"
+            value={cfg?.channel ?? "stable"}
+            disabled={savingCfg}
+            onChange={(event) => saveCfg({ channel: event.target.value as "stable" | "dev" })}
+          >
+            <option value="stable">稳定版 — 推荐(跟踪 latest,不含开发版)</option>
+            <option value="dev">预发布版 — 开发通道(含每轮迭代与稳定性检查版)</option>
+          </select>
+          <div className="ep-select-desc-below">
+            {cfg?.channel === "dev"
+              ? "启动时也会安装开发版;配合作者的三段式发布,测试机推荐"
+              : "只安装已转正的稳定版;开发版永远不会通过自动更新抵达"}
+          </div>
+          <div className="ep-upgrade-row">
+            <span className="ep-hint-inline">
+              自动更新{cfg?.autoUpdate === false ? "已关闭:启动仍检测并播报新版,不下载" : "开启:发现新版即下载换装并自动重启"}
+            </span>
+            <button
+              type="button"
+              className={`ep-pill${cfg?.autoUpdate ? " active" : ""}`}
+              aria-pressed={cfg?.autoUpdate}
+              disabled={savingCfg}
+              onClick={() => saveCfg({ autoUpdate: !(cfg?.autoUpdate ?? true) })}
+            >
+              自动更新:{cfg?.autoUpdate === false ? "关" : "开"}
+            </button>
+          </div>
+        </div>
+
         <div className="ep-upgrade-row">
           <span className="ep-hint-inline">
-            更新流程:下载新 exe(完整性校验)→自动换装重启;预发布(开发版)不出现在稳定通道
+            立即更新按所选通道检查并安装(不受自动更新开关限制);验证后旧 exe 保留为 .old
           </span>
           <button
             type="button"

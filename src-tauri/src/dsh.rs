@@ -322,6 +322,22 @@ fn save_prefer_npx(value: bool) {
     write_settings(settings);
 }
 
+/// App self-update preferences persisted in settings.json:
+/// channel = "stable"(default) | "dev"; auto_update default true.
+pub(crate) fn app_update_config() -> (String, bool) {
+    let s = read_settings();
+    let channel = s["appUpdateChannel"].as_str().unwrap_or("stable").to_string();
+    let auto = s["appAutoUpdate"].as_bool().unwrap_or(true);
+    (channel, auto)
+}
+
+pub(crate) fn set_app_update_config(channel: &str, auto: bool) {
+    let mut settings = read_settings();
+    settings["appUpdateChannel"] = json!(if channel == "dev" { "dev" } else { "stable" });
+    settings["appAutoUpdate"] = json!(auto);
+    write_settings(settings);
+}
+
 /// User-entered dsh executable (dsh.cmd/dsh.exe) saved from the notfound
 /// dialog; `None` when unset or the file no longer exists (self-healing).
 fn custom_dsh_path() -> Option<String> {
