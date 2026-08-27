@@ -338,6 +338,97 @@ pub(crate) fn set_app_update_config(channel: &str, auto: bool) {
     write_settings(settings);
 }
 
+// --- 设置 tab:壳自身偏好(窗口行为),与更新偏好同住 settings.json ---
+
+/// Close-button behavior: "tray"(default, hide with DSH running) | "exit".
+pub(crate) fn close_action() -> String {
+    read_settings()
+        .get("closeAction")
+        .and_then(|x| x.as_str())
+        .unwrap_or("tray")
+        .to_string()
+}
+
+pub(crate) fn set_close_action(action: &str) {
+    let mut settings = read_settings();
+    settings["closeAction"] = json!(if action == "exit" { "exit" } else { "tray" });
+    write_settings(settings);
+}
+
+/// Keep the main window above all others; applied live and restored on startup.
+pub(crate) fn always_on_top() -> bool {
+    read_settings()
+        .get("alwaysOnTop")
+        .and_then(|x| x.as_bool())
+        .unwrap_or(false)
+}
+
+pub(crate) fn set_always_on_top(on: bool) {
+    let mut settings = read_settings();
+    settings["alwaysOnTop"] = json!(on);
+    write_settings(settings);
+}
+
+/// Directory holding dsh.log / settings.json — the「应用数据目录」row.
+pub(crate) fn shell_data_dir() -> Option<String> {
+    log_path()
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
+// --- 开机自启(设置 tab):HKCU Run 键,实时查注册表,不落 settings.json ---
+
+#[cfg(windows)]
+pub(crate) mod autostart {
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_SET_VALUE};
+    use winreg::RegKey;
+
+    const RUN_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+    const VALUE_NAME: &str = "DeepSeek Harness";
+
+    pub(crate) fn enabled() -> bool {
+        RegKey::predef(HKEY_CURRENT_USER)
+            .open_subkey(RUN_SUBKEY)
+            .and_then(|k| k.get_value::<String, _>(VALUE_NAME))
+            .is_ok()
+    }
+
+    pub(crate) fn set(enable: bool) -> Result<(), String> {
+        if !enable {
+            // Absent value/key counts as disabled — deleting twice must not error.
+            return match RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(RUN_SUBKEY, KEY_SET_VALUE) {
+                Ok(key) => match key.delete_value(VALUE_NAME) {
+                    Ok(()) => Ok(()),
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                    Err(e) => Err(e.to_string()),
+                },
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(e) => Err(e.to_string()),
+            };
+        }
+        let exe = tauri::utils::platform::current_exe().map_err(|e| e.to_string())?;
+        // Quote the path (spaces are legal); strip the `\\?\` verbatim prefix
+        // current_exe() can carry, same as the toast AUMID registration.
+        let path = exe.display().to_string();
+        let path = path.strip_prefix(r"\\?\").unwrap_or(&path);
+        let (key, _) = RegKey::predef(HKEY_CURRENT_USER)
+            .create_subkey(RUN_SUBKEY)
+            .map_err(|e| e.to_string())?;
+        key.set_value(VALUE_NAME, &format!("\"{path}\""))
+            .map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(not(windows))]
+pub(crate) mod autostart {
+    pub(crate) fn enabled() -> bool {
+        false
+    }
+    pub(crate) fn set(_enable: bool) -> Result<(), String> {
+        Err("仅支持 Windows".into())
+    }
+}
+
 /// User-entered dsh executable (dsh.cmd/dsh.exe) saved from the notfound
 /// dialog; `None` when unset or the file no longer exists (self-healing).
 fn custom_dsh_path() -> Option<String> {

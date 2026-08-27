@@ -43,6 +43,37 @@ fn dsh_npm_probe() -> serde_json::Value {
     dsh::npm_probe()
 }
 
+// --- 设置 tab:壳自身偏好。改动即时落盘;置顶项额外当场应用到窗口。 ---
+
+/// Settings-tab payload: persisted shell prefs + 数据目录 + 实时注册表自启状态。
+#[tauri::command]
+fn app_get_shell_settings() -> serde_json::Value {
+    serde_json::json!({
+        "closeAction": dsh::close_action(),
+        "alwaysOnTop": dsh::always_on_top(),
+        "autostart": dsh::autostart::enabled(),
+        "appDataDir": dsh::shell_data_dir(),
+    })
+}
+
+#[tauri::command]
+fn app_set_close_action(action: String) {
+    dsh::set_close_action(&action);
+}
+
+#[tauri::command]
+fn app_set_autostart(enable: bool) -> Result<(), String> {
+    dsh::autostart::set(enable)
+}
+
+#[tauri::command]
+fn app_set_always_on_top(app: AppHandle, enable: bool) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.set_always_on_top(enable);
+    }
+    dsh::set_always_on_top(enable);
+}
+
 /// Frontend-invoked environment facts for the env panel.
 #[tauri::command]
 fn env_info(app: AppHandle) -> serde_json::Value {
@@ -349,7 +380,7 @@ pub fn run() {    tauri::Builder::default()
         }))
         .plugin(tauri_plugin_opener::init())
         .manage(dsh::DshState::new())
-        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
+        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
         .setup(|app| {
             // Session-start log rotation (ComfyUI-style) before anything logs
             // or spawns: previous session archived under a timestamped name.
@@ -409,6 +440,14 @@ pub fn run() {    tauri::Builder::default()
                 tauri::webview::NewWindowResponse::Deny
             })
             .build()?;
+
+            // Restore the settings-tab「窗口置顶」preference up front, so a
+            // user with it enabled never sees one unpinned frame.
+            if dsh::always_on_top() {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.set_always_on_top(true);
+                }
+            }
 
             let open = MenuItem::with_id(app, "open", "Open DSH", true, None::<&str>)?;
             // Backend-only restart: relaunches the dsh web process, not the
@@ -470,11 +509,17 @@ pub fn run() {    tauri::Builder::default()
             Ok(())
         })
         .on_window_event(|window, event| {
-            // X hides to tray; DSH keeps running. Only tray "退出" actually exits.
+            // X behavior follows the settings tab: hide to tray (default,
+            // DSH keeps running) or quit outright via the same path as the
+            // tray「退出」entry. Only tray「退出」always exits regardless.
             if window.label() == "main" {
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
-                    let _ = window.hide();
+                    if dsh::close_action() == "exit" {
+                        quit_dsh(window.app_handle());
+                    } else {
+                        let _ = window.hide();
+                    }
                 }
             }
         })

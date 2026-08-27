@@ -27,13 +27,16 @@ export type EnvInfo = {
 };
 
 /** Which detail tab is active. */
-type Tab = "env" | "log" | "update";
+type Tab = "env" | "log" | "update" | "settings";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "env", label: "环境" },
   { id: "log", label: "日志" },
   { id: "update", label: "更新" },
+  { id: "settings", label: "设置" },
 ];
+
+const TAB_IDS: readonly string[] = TABS.map((t) => t.id);
 
 function formatBytes(bytes: number | null | undefined): string {
   if (bytes === null || bytes === undefined) return "未检测到";
@@ -645,6 +648,193 @@ function UpdateTab({
   );
 }
 
+// --- 设置 tab ---
+
+/** Shell prefs served by app_get_shell_settings. */
+type ShellSettings = {
+  closeAction: "tray" | "exit";
+  alwaysOnTop: boolean;
+  autostart: boolean;
+};
+
+const CLOSE_ACTIONS: ChannelOption[] = [
+  { id: "tray", title: "隐藏到托盘 — 推荐", desc: "关闭窗口后 DSH 继续运行,双击托盘图标找回" },
+  { id: "exit", title: "直接退出", desc: "点击 X 即退出应用并关闭 DSH 后端" },
+];
+
+/** One boolean preference row: label / 说明 / 开关 pill(改动即时落盘). */
+function PrefRow({
+  label,
+  desc,
+  active,
+  disabled,
+  onToggle,
+}: {
+  label: string;
+  desc: string;
+  active: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="ep-row">
+      <div className="ep-row-label">{label}</div>
+      <div className="ep-row-value">{desc}</div>
+      <div className="ep-row-actions">
+        <button
+          type="button"
+          className={`ep-pill${active ? " active" : ""}`}
+          aria-pressed={active}
+          disabled={disabled}
+          onClick={onToggle}
+        >
+          {active ? "开" : "关"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** 设置 tab, Comfy-Desktop-style:窗口行为 + 面板偏好 + 关于,全部即时保存。
+ *  更新通道/自动更新刻意不在此页——归「更新」tab,避免同一配置两处入口。 */
+function SettingsTab({ info, currentTab }: { info: EnvInfo | null; currentTab: Tab }) {
+  const [cfg, setCfg] = useState<ShellSettings | null>(null);
+  const [dataDir, setDataDir] = useState<string | null>(null);
+  const [rememberTab, setRememberTab] = useState<boolean>(
+    () => localStorage.getItem("epRememberTab") !== "0",
+  );
+  const [busyAutostart, setBusyAutostart] = useState(false);
+
+  useEffect(() => {
+    invoke<{
+      closeAction?: string;
+      alwaysOnTop?: boolean;
+      autostart?: boolean;
+      appDataDir?: string | null;
+    }>("app_get_shell_settings")
+      .then((r) => {
+        setCfg({
+          closeAction: r.closeAction === "exit" ? "exit" : "tray",
+          alwaysOnTop: r.alwaysOnTop === true,
+          autostart: r.autostart === true,
+        });
+        setDataDir(r.appDataDir ?? null);
+      })
+      .catch(() => {});
+  }, []);
+
+  // 每个 saver 都在命令成功返回后才更新本地 state——写失败就不骗 UI。
+  const saveClose = (id: string) => {
+    invoke("app_set_close_action", { action: id })
+      .then(() => setCfg((c) => (c ? { ...c, closeAction: id === "exit" ? "exit" : "tray" } : c)))
+      .catch(() => {});
+  };
+
+  const saveAlwaysOnTop = () => {
+    if (!cfg) return;
+    const next = !cfg.alwaysOnTop;
+    invoke("app_set_always_on_top", { enable: next })
+      .then(() => setCfg((c) => (c ? { ...c, alwaysOnTop: next } : c)))
+      .catch(() => {});
+  };
+
+  const saveAutostart = () => {
+    if (!cfg) return;
+    const next = !cfg.autostart;
+    setBusyAutostart(true);
+    invoke("app_set_autostart", { enable: next })
+      .then(() => setCfg((c) => (c ? { ...c, autostart: next } : c)))
+      .catch(() => {})
+      .finally(() => setBusyAutostart(false));
+  };
+
+  const saveRememberTab = () => {
+    const next = !rememberTab;
+    localStorage.setItem("epRememberTab", next ? "1" : "0");
+    if (next) localStorage.setItem("epLastTab", currentTab);
+    setRememberTab(next);
+  };
+
+  return (
+    <div className="ep-content-inner">
+      <section className="ep-group">
+        <div className="ep-group-title">窗口</div>
+        <div className="ep-card">
+          <PrefRow
+            label="窗口置顶"
+            desc="总是保持在其他窗口最前"
+            active={cfg?.alwaysOnTop ?? false}
+            disabled={cfg === null}
+            onToggle={saveAlwaysOnTop}
+          />
+          <PrefRow
+            label="开机自启"
+            desc="登录 Windows 后自动启动(最小化待命,后端随应用走)"
+            active={cfg?.autostart ?? false}
+            disabled={cfg === null || busyAutostart}
+            onToggle={saveAutostart}
+          />
+        </div>
+        <div className="ep-card ep-channel-card">
+          <div className="ep-channel-title">
+            关闭按钮行为
+            <span className="ep-help" title="决定点击标题栏 X 键时应用做什么">?</span>
+          </div>
+          <ChannelPicker
+            value={cfg?.closeAction ?? "tray"}
+            onChange={saveClose}
+            options={CLOSE_ACTIONS}
+            disabled={cfg === null}
+          />
+        </div>
+      </section>
+
+      <section className="ep-group">
+        <div className="ep-group-title">面板</div>
+        <div className="ep-card">
+          <PrefRow
+            label="记住上次页签"
+            desc="重新打开面板时落在上次停留的页签(日志直落入口不受影响)"
+            active={rememberTab}
+            onToggle={saveRememberTab}
+          />
+        </div>
+      </section>
+
+      <section className="ep-group">
+        <div className="ep-group-title">关于</div>
+        <div className="ep-card">
+          <div className="ep-row">
+            <div className="ep-row-label">当前版本</div>
+            <div className="ep-row-value mono">
+              {info?.app?.version ? `v${info.app.version}` : "检测中…"}
+            </div>
+            <div className="ep-row-actions" />
+          </div>
+          <div className="ep-row">
+            <div className="ep-row-label">更新偏好</div>
+            <div className="ep-row-value">更新通道与自动更新开关在「更新」页签</div>
+            <div className="ep-row-actions" />
+          </div>
+          <div className="ep-row">
+            <div className="ep-row-label">应用数据目录</div>
+            <div className={`ep-row-value mono${dataDir ? "" : " absent"}`}>
+              {dataDir ?? "未检测到"}
+            </div>
+            <div className="ep-row-actions">
+              {dataDir !== null && (
+                <IconButton label="打开目录" onClick={() => invoke("open_path", { path: dataDir }).catch(() => {})}>
+                  {FolderIcon}
+                </IconButton>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 /** The environment panel: search bar / env+log tabs / grouped fact cards /
  *  bottom action bar. Only real data and real actions. */
 export default function EnvPanel({
@@ -662,7 +852,20 @@ export default function EnvPanel({
   onRefresh: () => void;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>(initialTab);
+  // 初始页签:通用入口(胶囊按钮/托盘环境信息, initialTab==="env")在开启
+  // "记住上次页签"时落在记忆页;显式入口(启动页查日志等)永远直落指定页。
+  const loadInitialTab = (): Tab => {
+    if (initialTab === "env" && localStorage.getItem("epRememberTab") !== "0") {
+      const last = localStorage.getItem("epLastTab");
+      if (last !== null && TAB_IDS.includes(last)) return last as Tab;
+    }
+    return initialTab;
+  };
+  const [tab, setTabState] = useState<Tab>(loadInitialTab);
+  const switchTab = (t: Tab) => {
+    setTabState(t);
+    if (localStorage.getItem("epRememberTab") !== "0") localStorage.setItem("epLastTab", t);
+  };
   const [query, setQuery] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
   const [restartMenuOpen, setRestartMenuOpen] = useState(false);
@@ -845,7 +1048,7 @@ export default function EnvPanel({
                   type="button"
                   className={`ep-tab${tab === t.id ? " active" : ""}`}
                   aria-current={tab === t.id ? "page" : undefined}
-                  onClick={() => setTab(t.id)}
+                  onClick={() => switchTab(t.id)}
                 >
                   {t.label}
                 </button>
@@ -970,6 +1173,7 @@ export default function EnvPanel({
                   onBackendUpgraded={onRefresh}
                 />
               )}
+              {tab === "settings" && <SettingsTab info={info} currentTab={tab} />}
             </div>
           </div>
         </div>
