@@ -428,33 +428,42 @@ function TitleBar({
     <header className="titlebar">
       <div className="titlebar-drag" {...dragHandlers} />
 
-      <div className="tb-identity" {...dragHandlers}>
-        <img className="tb-logo" src={appIcon} alt="" draggable={false} />
+      {/* Comfy-style capsule control: icon + name + chevron, whole pill
+          toggles the environment panel. Update status rides as a transient
+          ring/check inside the pill (no version text in the bar). */}
+      <div className="tb-identity">
         <button
           type="button"
           ref={nameBtnRef}
-          className={`app-name${panelOpen ? " active" : ""}`}
+          className={`tb-pill${panelOpen ? " open" : ""}`}
           title="环境管理"
           onClick={onTogglePanel}
         >
-          DeepSeek Harness
+          <img className="tb-pill-icon" src={appIcon} alt="" draggable={false} />
+          <span className="tb-pill-name">DeepSeek Harness</span>
+          {updateBusy && (
+            <svg className="update-ring tb-pill-status" viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="8" cy="8" r="6" />
+            </svg>
+          )}
+          {updateState === "done" && (
+            <svg
+              className={`check tb-pill-status${checkVisible ? " show" : ""}`}
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+            >
+              <path d="M3 8.5 6.5 12 13 4.5" />
+            </svg>
+          )}
+          {!updateBusy && updateState !== "done" && (
+            <svg
+              className={`tb-pill-chevron${panelOpen ? " up" : ""}`}
+              width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"
+            >
+              <path d="M1 3.5 5 7.5 9 3.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+          )}
         </button>
-        {/* Transient update indicator: small ring while checking/downloading,
-            green check when done — no version text in the bar. */}
-        {updateBusy && (
-          <svg className="update-ring tb-update-dot" viewBox="0 0 16 16" aria-hidden="true">
-            <circle cx="8" cy="8" r="6" />
-          </svg>
-        )}
-        {updateState === "done" && (
-          <svg
-            className={`check tb-update-dot${checkVisible ? " show" : ""}`}
-            viewBox="0 0 16 16"
-            aria-hidden="true"
-          >
-            <path d="M3 8.5 6.5 12 13 4.5" />
-          </svg>
-        )}
       </div>
 
       <div className="titlebar-drag" {...dragHandlers} />

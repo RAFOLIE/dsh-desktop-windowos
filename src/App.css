@@ -169,50 +169,66 @@ input:focus-visible {
   align-self: stretch;
 }
 
-/* Whale icon + name, truly centered (buttons sit at the far right; the
-   absolute cluster ignores them so it stays mid-window). */
+/* Comfy-style capsule control, truly centered (window buttons at far
+   right; absolute cluster ignores them so it stays mid-window). Whole
+   pill is one button: click toggles the environment panel. */
 .tb-identity {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  max-width: calc(100% - 440px);
-  overflow: hidden;
 }
 
-.tb-logo {
+.tb-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e7eaf0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.tb-pill:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(76, 154, 255, 0.5);
+}
+
+.tb-pill.open {
+  background: rgba(76, 154, 255, 0.14);
+  border-color: #4c9aff;
+  color: #cfe2ff;
+}
+
+.tb-pill-icon {
   width: 20px;
   height: 20px;
   flex: none;
   user-select: none;
 }
 
-.app-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #c9d1d9;
-  letter-spacing: 0.2px;
-  background: transparent;
-  border: none;
-  padding: 4px 6px;
-  margin-left: -4px;
-  cursor: pointer;
+.tb-pill-name {
+  line-height: 20px;
 }
 
-.app-name:hover {
-  color: #58a6ff;
-  background: rgba(88, 166, 255, 0.08);
+.tb-pill-chevron {
+  flex: none;
+  color: #969dab;
+  transition: transform 0.15s ease, color 0.15s ease;
 }
 
-.app-name.active {
-  color: #58a6ff;
+.tb-pill.open .tb-pill-chevron {
+  transform: rotate(180deg);
+  color: #4c9aff;
 }
 
-/* Transient update indicator next to the name (ring while busy, check when
-   done); invisible when idle. */
+/* transient update indicator rides inside the pill */
 .tb-update-dot {
   flex: none;
 }
