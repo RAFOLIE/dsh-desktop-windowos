@@ -11,6 +11,39 @@
 //! same new-window fallback) and copy the link. Non-link right-clicks keep the
 //! default menu.
 
+/// Registered at window build time (`initialization_script`). With
+/// `DSH_SCHEME_DEBUG=1` a fixed badge reports the live prefers-color-scheme
+/// verdict inside every 3080 frame — diagnostic aid for theme-follow bugs.
+pub(crate) fn init_script() -> String {
+    let mut script = MENU_SCRIPT.to_string();
+    if std::env::var("DSH_SCHEME_DEBUG").as_deref() == Ok("1") {
+        script.push_str(SCHEME_DEBUG_SCRIPT);
+    }
+    script
+}
+
+const SCHEME_DEBUG_SCRIPT: &str = r#"
+(function () {
+  function put() {
+    var b = document.createElement('div');
+    var dark = window.matchMedia &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches;
+    b.textContent = 'SCHEME:' + (dark ? 'DARK' : 'LIGHT');
+    b.setAttribute('style',
+      'position:fixed;left:6px;bottom:6px;z-index:2147483647;' +
+      'background:#000;color:#0f0;font:bold 13px monospace;' +
+      'padding:3px 8px;border-radius:6px;');
+    document.body.appendChild(b);
+  }
+  if (document.body) put();
+  else {
+    var t = setInterval(function () {
+      if (document.body) { clearInterval(t); put(); }
+    }, 200);
+  }
+})();
+"#;
+
 /// Registered at window build time (`initialization_script`); see module docs.
 pub(crate) const MENU_SCRIPT: &str = r#"
 (function () {
@@ -64,6 +97,21 @@ pub(crate) const MENU_SCRIPT: &str = r#"
     e.preventDefault();
     e.stopPropagation();
     showMenu(e.clientX, e.clientY, a.href);
+  }, true);
+  // Left-click backstop for external links (issue #7): plain http(s) anchors
+  // with no target are supposed to navigate the iframe away, which reads as
+  // "the link does nothing/loses the app". Route them to the system browser
+  // ourselves instead of relying on the new-window path alone.
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a) return;
+    if (a.target && a.target !== '_self') return; // target=_blank rides the new-window handler
+    var href = a.getAttribute('href') || '';
+    if (!/^https?:\/\//i.test(href)) return;
+    if (location.origin && href.toLowerCase().indexOf(location.origin.toLowerCase()) === 0) return;
+    e.preventDefault();
+    openInBrowser(a.href);
   }, true);
   document.addEventListener('mousedown', function (e) {
     if (menu && !menu.contains(e.target)) closeMenu();

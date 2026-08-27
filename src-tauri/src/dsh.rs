@@ -239,8 +239,7 @@ fn web_help_mentions_no_open(dsh_path: &str) -> bool {
     let Ok(output) = child.wait_with_output() else {
         return false;
     };
-    let text = String::from_utf8_lossy(&output.stdout).to_string()
-        + &String::from_utf8_lossy(&output.stderr);
+    let text = console_decode(&output.stdout) + &console_decode(&output.stderr);
     text.contains("--no-open")
 }
 
@@ -1076,7 +1075,7 @@ pub(crate) fn where_first(name: &str) -> Option<String> {
     if !output.status.success() {
         return None;
     }
-    let text = String::from_utf8_lossy(&output.stdout);
+    let text = console_decode(&output.stdout);
     text.lines()
         .next()
         .map(str::trim)
@@ -1097,13 +1096,15 @@ fn run_capture(program: &str, args: &[&str]) -> Option<String> {
         .stderr(std::process::Stdio::null())
         .spawn()
         .ok()?;
-    let mut out = String::new();
+    // read_to_end + console_decode: read_to_string would hard-fail on
+    // non-UTF-8 console bytes (GBK output never reached the panel at all).
+    let mut out_bytes = Vec::new();
     if let Some(mut stdout) = child.stdout.take() {
-        let _ = stdout.read_to_string(&mut out);
+        let _ = stdout.read_to_end(&mut out_bytes);
     }
     let _ = child.wait();
-    let trimmed = out.trim();
-    (!trimmed.is_empty()).then(|| trimmed.to_string())
+    let trimmed = console_decode(&out_bytes).trim().to_string();
+    (!trimmed.is_empty()).then_some(trimmed)
 }
 
 /// Pid currently listening on the DSH port.
@@ -1112,7 +1113,7 @@ fn port_listener_pid() -> Option<u32> {
     command.args(["-ano", "-p", "tcp"]);
     apply_no_window(&mut command);
     let output = command.output().ok()?;
-    let text = String::from_utf8_lossy(&output.stdout);
+    let text = console_decode(&output.stdout);
     let suffix = format!(":{DSH_PORT}");
     text.lines().find_map(|line| {
         let fields: Vec<&str> = line.split_whitespace().collect();
@@ -1574,7 +1575,7 @@ fn kill_port_listeners() {
     let Ok(output) = command.output() else {
         return;
     };
-    let text = String::from_utf8_lossy(&output.stdout);
+    let text = console_decode(&output.stdout);
     let suffix = format!(":{DSH_PORT}");
     for line in text.lines() {
         let fields: Vec<&str> = line.split_whitespace().collect();
@@ -1736,3 +1737,95 @@ fn apply_no_window(command: &mut Command) {
 
 #[cfg(not(windows))]
 fn apply_no_window(_command: &mut Command) {}
+
+/// Decode captured console output. Windowless children (CREATE_NO_WINDOW)
+/// print in the console code page — GBK on zh-CN systems — so raw UTF-8
+/// decoding mangled every non-ASCII path (`where dsh` hit → garbled spawn
+/// target, issue #4). Valid UTF-8 still wins so chcp 65001 machines and
+/// ASCII output are untouched.
+pub(crate) fn console_decode(bytes: &[u8]) -> String {
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        return text.to_string();
+    }
+    oem_decode(bytes).unwrap_or_else(|| String::from_utf8_lossy(bytes).into_owned())
+}
+
+/// Best-effort decode via the system OEM code page; `None` keeps the caller's
+/// lossy fallback alive on non-Windows or conversion failure.
+#[cfg(windows)]
+fn oem_decode(bytes: &[u8]) -> Option<String> {
+    use windows_sys::Win32::Globalization::{MultiByteToWideChar, CP_OEMCP, MB_PRECOMPOSED};
+    if bytes.is_empty() {
+        return None;
+    }
+    // No MB_ERR_INVALID_CHARS: unmappable bytes become the default char
+    // instead of failing the whole buffer.
+    let flags = MB_PRECOMPOSED;
+    unsafe {
+        let len = MultiByteToWideChar(
+            CP_OEMCP,
+            flags,
+            bytes.as_ptr(),
+            bytes.len() as i32,
+            std::ptr::null_mut(),
+            0,
+        );
+        if len <= 0 {
+            return None;
+        }
+        let mut wide = vec![0u16; len as usize];
+        let written = MultiByteToWideChar(
+            CP_OEMCP,
+            flags,
+            bytes.as_ptr(),
+            bytes.len() as i32,
+            wide.as_mut_ptr(),
+            len,
+        );
+        if written <= 0 {
+            return None;
+        }
+        Some(String::from_utf16_lossy(&wide[..written as usize]))
+    }
+}
+
+#[cfg(not(windows))]
+fn oem_decode(_bytes: &[u8]) -> Option<String> {
+    None
+}
+
+/// Windows personalization「应用选择浅色」switch (HKCU). Defaults to dark
+/// when the key is absent, matching stock Windows styling.
+///
+/// Read once at window creation: tauri-runtime-wry forwards the window theme
+/// into WebView2's preferred color scheme ONLY at build time, so the shell
+/// pins the scheme explicitly instead of trusting the runtime default (which
+/// surfaced as issue #8's dark-page-on-light-system report).
+pub(crate) fn system_apps_dark() -> bool {
+    use winreg::enums::HKEY_CURRENT_USER;
+    let hkcu = winreg::RegKey::predef(HKEY_CURRENT_USER);
+    hkcu.open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize")
+        .and_then(|k| k.get_value::<u32, _>("AppsUseLightTheme"))
+        .map(|light| light == 0)
+        .unwrap_or(true)
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gbk_console_bytes_decode_as_paths() {
+        // "小鱼的dsh" in GBK (issue #4-style Chinese-username home dir).
+        let gbk = [0xd0, 0xa1, 0xd3, 0xe3, 0x5c, 0x64, 0x73, 0x68]; // 小鱼\dsh
+        let text = console_decode(&gbk);
+        assert!(text.contains("小鱼"), "decoded: {text}");
+        assert!(text.ends_with("\\dsh"));
+    }
+
+    #[test]
+    fn valid_utf8_still_wins() {
+        assert_eq!(console_decode("ascii/path".as_bytes()), "ascii/path");
+        assert_eq!(console_decode("héllo".as_bytes()), "héllo");
+    }
+}

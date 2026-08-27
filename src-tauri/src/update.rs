@@ -21,7 +21,7 @@ const PLUGIN_NAME: &str = "dsh-desktop-plugin";
 static CHECK_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
 
 /// Fire-and-forget Windows toast; mirrors monitor.rs's notification recipe.
-fn toast(text: &str) {
+pub(crate) fn toast(text: &str) {
     use tauri_winrt_notification::{Duration as ToastDuration, Toast};
     let _ = Toast::new(crate::TOAST_AUMID)
         .title("DSH 桌面端")

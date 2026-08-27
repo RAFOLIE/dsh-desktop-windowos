@@ -1,6 +1,6 @@
 [package]
 name = "dsh-desktop-windowos"
-version = "1.6.33"
+version = "1.6.34"
 description = "DeepSeek Harness desktop shell"
 authors = ["RAFOLIE"]
 edition = "2021"
@@ -44,6 +44,10 @@ uuid = { version = "1", features = ["v4"] }
 winreg = "0.55"
 # Windows toast with action buttons + in-process click callback (see monitor.rs).
 tauri-winrt-notification = "0.7"
+
+# Console code-page decoding for captured child output (GBK paths, issue #4).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.52", features = ["Win32_Globalization", "Win32_Foundation"] }
 
 [profile.release]
 # Size-first profile for a portable single-exe deliverable.

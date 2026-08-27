@@ -305,6 +305,76 @@ fn quit_dsh(app: &AppHandle) {
     app.exit(0);
 }
 
+/// Resolve where a webview download lands (issue #6): always the user's
+/// Downloads folder, keeping WebView2's proposed file name when present and
+/// falling back to a timestamped name for blob-style URLs that carry none.
+/// Existing files get " (n)" suffixes instead of being overwritten.
+fn download_target(proposed: &std::path::Path, url: &str) -> std::path::PathBuf {
+    let downloads = std::env::var_os("USERPROFILE")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("Downloads");
+    let _ = std::fs::create_dir_all(&downloads);
+
+    let name = proposed
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .filter(|n| !n.trim().is_empty() && !n.eq_ignore_ascii_case("download"))
+        .or_else(|| name_from_url(url))
+        .unwrap_or_else(|| {
+            let secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            format!("dsh-download-{secs}")
+        });
+
+    let ext = std::path::Path::new(&name)
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    let stem = name.trim_end_matches(&ext).to_string();
+    let mut candidate = downloads.join(&name);
+    let mut n = 1;
+    while candidate.exists() {
+        candidate = downloads.join(format!("{stem} ({n}){ext}"));
+        n += 1;
+    }
+    candidate
+}
+
+/// Last path segment of the URL with percent-encoding resolved; `None` for
+/// endpoint-only URLs (and blob:, which never carries a usable name).
+fn name_from_url(url: &str) -> Option<String> {
+    fn hex(c: u8) -> Option<u8> {
+        match c {
+            b'0'..=b'9' => Some(c - b'0'),
+            b'a'..=b'f' => Some(c - b'a' + 10),
+            b'A'..=b'F' => Some(c - b'A' + 10),
+            _ => None,
+        }
+    }
+    let raw = url.split(['?', '#']).next()?.rsplit('/').next()?;
+    if raw.is_empty() {
+        return None;
+    }
+    let b = raw.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let (Some(h), Some(l)) = (hex(b[i + 1]), hex(b[i + 2])) {
+                out.push(h * 16 + l);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    (!out.is_empty()).then(|| String::from_utf8_lossy(&out).into_owned())
+}
+
 /// Windows toast identity for a portable bare exe. tauri-plugin-notification
 /// stamps toasts with the app identifier as AppUserModelID, but Windows only
 /// displays toasts for an AUMID registered via an installer's Start Menu
@@ -411,7 +481,7 @@ pub fn run() {    tauri::Builder::default()
             // Runs in every frame on document creation; self-guards on
             // `location.origin === 'http://127.0.0.1:3080'` so it installs the
             // link context menu exactly inside the webchat iframe.
-            .initialization_script(menu::MENU_SCRIPT)
+            .initialization_script(&menu::init_script())
             // WebView2's default drag-drop handler swallows file drops before
             // the page sees them, so HTML5 drag-and-drop (image attachments)
             // only works with the handler disabled — the tauri-documented
@@ -419,6 +489,66 @@ pub fn run() {    tauri::Builder::default()
             // rides along for image paste.
             .disable_drag_drop_handler()
             .enable_clipboard_access()
+            // Native Ctrl +/-/0 and Ctrl+wheel zoom for the embedded webchat
+            // (issue #5): webview-level, so they work even while focus sits
+            // inside the 3080 iframe.
+            .zoom_hotkeys_enabled(true)
+            // Color scheme is driven from HKCU personalization instead of
+            // WebView2's default (issue #8: dark page on a light system);
+            // spawn_theme_follow re-applies when the setting flips.
+            .theme(Some(if dsh::system_apps_dark() {
+                tauri::Theme::Dark
+            } else {
+                tauri::Theme::Light
+            }))
+            // Session-log/blob downloads from the embedded webchat died
+            // silently without a handler (issue #6). Land them in Downloads.
+            .on_download(|_webview, event| {
+                use tauri::webview::DownloadEvent;
+                match event {
+                    DownloadEvent::Requested { url, destination } => {
+                        *destination = download_target(&destination, url.as_str());
+                        true
+                    }
+                    DownloadEvent::Finished { url, path, success } => {
+                        if success {
+                            let name = path
+                                .as_ref()
+                                .and_then(|p| p.file_name())
+                                .map(|n| n.to_string_lossy().into_owned())
+                                .unwrap_or_else(|| url.to_string());
+                            crate::update::toast(&format!("下载完成: {name}"));
+                            let shown = path
+                                .as_ref()
+                                .map(|p| p.display().to_string())
+                                .unwrap_or_else(|| url.to_string());
+                            dsh::log_write(
+                                dsh::LogLevel::Info,
+                                &format!("[dsh-desktop] download finished: {shown}"),
+                            );
+                        }
+                        success
+                    }
+                    _ => false,
+                }
+            })
+            .on_new_window(move |url, _features| {
+                let app = opener_app.clone();
+                let url = url.to_string();
+                tauri::async_runtime::spawn(async move {
+                    use tauri_plugin_opener::OpenerExt;
+                    // Log failures instead of swallowing them: issue #7's
+                    // "links do nothing" reports were impossible to diagnose
+                    // from user-side logs alone.
+                    if let Err(err) = app.opener().open_url(&url, None::<&str>) {
+                        dsh::log_write(
+                            dsh::LogLevel::Error,
+                            &format!("[dsh-desktop] open_url failed for {url}: {err}"),
+                        );
+                    }
+                });
+                tauri::webview::NewWindowResponse::Deny
+            })
             // F5 (or any webview reload) remounts the shell page, which
             // missed the original `ready` emit — re-announce the current
             // backend state so the fresh page doesn't sit on the boot
@@ -432,16 +562,14 @@ pub fn run() {    tauri::Builder::default()
                     std::thread::spawn(move || dsh::emit_current_status(&app));
                 }
             })
-            .on_new_window(move |url, _features| {
-                let app = opener_app.clone();
-                let url = url.to_string();
-                tauri::async_runtime::spawn(async move {
-                    use tauri_plugin_opener::OpenerExt;
-                    let _ = app.opener().open_url(url, None::<&str>);
-                });
-                tauri::webview::NewWindowResponse::Deny
-            })
             .build()?;
+
+            // Note: the webview color scheme (issue #8) is picked up at the
+            // `.theme(...)` above during window CREATION — tauri-runtime-wry
+            // forwards the window theme into WebView2's preferred color
+            // scheme only once, at build time (set_theme after that touches
+            // just the native chrome). A mid-session OS flip therefore needs
+            // an app restart to reach the page.
 
             // Restore the settings-tab「窗口置顶」preference up front, so a
             // user with it enabled never sees one unpinned frame.
