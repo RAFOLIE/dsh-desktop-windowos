@@ -1081,7 +1081,7 @@ input:focus-visible {
   left: 0;
   right: 0;
   z-index: 8;
-  max-height: 320px;
+  max-height: 280px;
   overflow-y: auto;
   padding: 6px;
   background: #1b1f2a;
@@ -1097,6 +1097,39 @@ input:focus-visible {
 .ep-select-menu::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.18);
   border-radius: 4px;
+}
+
+/* Sticky filter box for searchable pickers (language list). Negative
+   offsets cancel the menu padding so it hugs the rounded top edge. */
+.ep-select-search {
+  position: sticky;
+  top: -6px;
+  z-index: 1;
+  width: calc(100% + 12px);
+  margin: -6px -6px 6px;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px 10px 0 0;
+  background: #1b1f2a;
+  color: #e7eaf0;
+  font-size: 13px;
+  outline: none;
+}
+
+.ep-select-search::placeholder {
+  color: #5c6370;
+}
+
+.ep-select-search:focus {
+  background: #20242f;
+}
+
+.ep-select-empty {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #5c6370;
 }
 
 .ep-select-option {
@@ -1547,4 +1580,22 @@ input:focus-visible {
 
 [data-theme="light"] .ep-select-option.selected {
   background: #eaf1fe;
+}
+
+[data-theme="light"] .ep-select-search {
+  background: #ffffff;
+  border-bottom-color: #e6e6e8;
+  color: #191b1f;
+}
+
+[data-theme="light"] .ep-select-search::placeholder {
+  color: #a0a6b1;
+}
+
+[data-theme="light"] .ep-select-search:focus {
+  background: #f7f8fa;
+}
+
+[data-theme="light"] .ep-select-empty {
+  color: #a0a6b1;
 }

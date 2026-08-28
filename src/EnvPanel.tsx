@@ -384,7 +384,7 @@ function verCmp(a: string, b: string): number {
 
 type Channel = "latest" | "next";
 
-export type ChannelOption = { id: string; title: string; desc: string };
+export type ChannelOption = { id: string; title: string; desc: string; /** Hidden search aliases (e.g. English names). */ keywords?: string };
 
 /** Comfy-style channel dropdown shared by BOTH update cards: anchored
  *  trigger button + two-line options rendered via portal to body with fixed
@@ -396,6 +396,9 @@ function ChannelPicker({
   options,
   disabled,
   hideDesc,
+  searchable,
+  searchPlaceholder,
+  emptyText,
 }: {
   value: string;
   onChange: (id: string) => void;
@@ -403,13 +406,21 @@ function ChannelPicker({
   disabled?: boolean;
   /** Collapse the helper line under the trigger (compact rows, e.g. language). */
   hideDesc?: boolean;
+  /** Render a filter box pinned to the menu top (for long option lists). */
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  /** Shown when the query matches nothing — never dead-end the list. */
+  emptyText?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [query, setQuery] = useState("");
   const btnRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const toggle = () => {
     setOpen((o) => {
+      if (o) setQuery("");
       if (!o && btnRef.current) {
         const r = btnRef.current.getBoundingClientRect();
         setPos({ left: r.left, top: r.bottom + 6, width: r.width });
@@ -417,6 +428,12 @@ function ChannelPicker({
       return !o;
     });
   };
+
+  useEffect(() => {
+    if (!open) return;
+    // Autofocus the filter box so typing starts immediately.
+    if (searchable) searchRef.current?.focus();
+  }, [open, searchable]);
 
   useEffect(() => {
     if (!open) return;
@@ -443,7 +460,24 @@ function ChannelPicker({
     };
   }, [open]);
 
+  const q = query.trim().toLowerCase();
+  const filtered =
+    q === ""
+      ? options
+      : options.filter(o =>
+          [o.title, o.desc, o.id, o.keywords].some(
+            v => v !== undefined && v.toLowerCase().includes(q),
+          ),
+        );
+
   const sel = options.find((o) => o.id === value) ?? options[0];
+
+  const pickFirst = () => {
+    if (filtered.length > 0) {
+      onChange(filtered[0].id);
+      setOpen(false);
+    }
+  };
 
   return (
     <>
@@ -474,7 +508,25 @@ function ChannelPicker({
               zIndex: 3000,
             }}
           >
-            {options.map((o) => (
+            {searchable && (
+              <input
+                ref={searchRef}
+                className="ep-select-search"
+                placeholder={searchPlaceholder}
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    pickFirst();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    setOpen(false);
+                  }
+                }}
+              />
+            )}
+            {filtered.map(o => (
               <button
                 key={o.id}
                 type="button"
@@ -492,6 +544,9 @@ function ChannelPicker({
                 )}
               </button>
             ))}
+            {filtered.length === 0 && emptyText !== undefined && (
+              <div className="ep-select-empty">{emptyText}</div>
+            )}
           </div>,
           document.body,
         )}
@@ -934,14 +989,17 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
                   value={localePref}
                   onChange={(l) => setLocale(l as LocalePref)}
                   options={[
-                    { id: "system", title: t("set.langSystem"), desc: "" },
-                    { id: "zh", title: LANG_NATIVE.zh, desc: "" },
-                    { id: "zh-Hant", title: LANG_NATIVE["zh-Hant"], desc: "" },
-                    { id: "en", title: LANG_NATIVE.en, desc: "" },
-                    { id: "ja", title: LANG_NATIVE.ja, desc: "" },
-                    { id: "ko", title: LANG_NATIVE.ko, desc: "" },
-                    { id: "ru", title: LANG_NATIVE.ru, desc: "" },
+                    { id: "system", title: t("set.langSystem"), desc: "", keywords: "follow system auto detect" },
+                    { id: "zh", title: LANG_NATIVE.zh, desc: "", keywords: "chinese simplified 中文" },
+                    { id: "zh-Hant", title: LANG_NATIVE["zh-Hant"], desc: "", keywords: "chinese traditional 繁體" },
+                    { id: "en", title: LANG_NATIVE.en, desc: "", keywords: "english" },
+                    { id: "ja", title: LANG_NATIVE.ja, desc: "", keywords: "japanese" },
+                    { id: "ko", title: LANG_NATIVE.ko, desc: "", keywords: "korean" },
+                    { id: "ru", title: LANG_NATIVE.ru, desc: "", keywords: "russian" },
                   ]}
+                  searchable
+                  searchPlaceholder={t("set.langSearchPlaceholder")}
+                  emptyText={t("set.langNoMatch")}
                   hideDesc
                 />
               </div>
