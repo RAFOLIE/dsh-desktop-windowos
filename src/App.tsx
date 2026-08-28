@@ -5,12 +5,15 @@ import appIcon from "./assets/app-icon.png";
 import EnvPanel, { type EnvInfo } from "./EnvPanel";
 import {
   LocaleContext,
-  loadUiLocale,
+  loadLocaleSettings,
   applyHtmlLang,
+  guessFromNavigator,
+  isLocale,
   makeT,
   useI18n,
   type I18n,
   type Locale,
+  type LocalePref,
 } from "./i18n";
 import { applySkin, loadUiTheme, watchSystemSkin } from "./theme";
 import "./App.css";
@@ -50,7 +53,12 @@ type Overlay = null | "env" | "log";
  *  instantly. */
 function App() {
   const [status, setStatus] = useState<DshStatus>({ status: "starting" });
-  const [locale, setLocaleState] = useState<Locale>("zh");
+  // Locale: paint an instant navigator-based guess, then override with the
+  // Rust-resolved locale ("system" = Windows UI language, single source of
+  // truth). setLocale persists via app_set_ui_locale (which also rebuilds
+  // the tray menu and returns the resolved locale).
+  const [locale, setLocaleState] = useState<Locale>(guessFromNavigator());
+  const [localePref, setLocalePrefState] = useState<LocalePref>("system");
   const [customPath, setCustomPath] = useState("");
   const [pathError, setPathError] = useState("");
   const [update, setUpdate] = useState<AppUpdate>({ state: "pending" });
@@ -106,24 +114,28 @@ function App() {
 
   // Locale: load persisted preference, then wrap everything in LocaleContext.
   // setLocale persists via app_set_ui_locale (which also rebuilds the tray
-  // menu Rust-side); local state flips only after that succeeds.
+  // menu Rust-side and returns the resolved locale); local state flips only
+  // after that succeeds.
   useEffect(() => {
-    loadUiLocale().then((l) => {
-      setLocaleState(l);
-      applyHtmlLang(l);
+    loadLocaleSettings().then(({ pref, resolved }) => {
+      setLocalePrefState(pref);
+      setLocaleState(resolved);
+      applyHtmlLang(resolved);
     });
   }, []);
   const i18n: I18n = useMemo(() => {
-    const setLocale = (next: Locale) => {
-      invoke("app_set_ui_locale", { locale: next })
-        .then(() => {
-          setLocaleState(next);
-          applyHtmlLang(next);
+    const setLocale = (pref: LocalePref) => {
+      invoke<string>("app_set_ui_locale", { locale: pref })
+        .then((resolved) => {
+          const r = isLocale(resolved) ? resolved : guessFromNavigator();
+          setLocalePrefState(pref);
+          setLocaleState(r);
+          applyHtmlLang(r);
         })
         .catch(() => {});
     };
-    return { t: makeT(locale), locale, setLocale };
-  }, [locale]);
+    return { t: makeT(locale), locale, localePref, setLocale };
+  }, [locale, localePref]);
   const { t } = i18n;
 
 

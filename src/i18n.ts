@@ -124,8 +124,9 @@ export const zh = {
   "set.themeSystem": "跟随系统",
   "set.themeDark": "深色",
   "set.themeLight": "浅色",
-  "set.language": "语言 / Language",
-  "set.langDesc": "切换即时生效；托盘菜单同步更新。Embedded page follows after restart.",
+    "set.language": "语言 / Language",
+  "set.langSystem": "跟随系统",
+  "set.langSystemDesc": "默认跟随 Windows 显示语言（当前：{name}）；切换即时生效，托盘菜单同步；内嵌网页重启应用后跟随",
   "set.alwaysOnTop": "窗口置顶",
   "set.alwaysOnTopDesc": "总是保持在其他窗口最前",
   "set.autostart": "开机自启",
@@ -305,9 +306,9 @@ const en: Dict = {
   "set.themeSystem": "System",
   "set.themeDark": "Dark",
   "set.themeLight": "Light",
-  "set.language": "Language / Language",
-  "set.langDesc":
-    "Applies instantly; tray menu follows. 内嵌网页重启应用后跟随所选语言。",
+    "set.language": "Language / Language",
+  "set.langSystem": "Follow system",
+  "set.langSystemDesc": "Follows the Windows display language by default (current: {name}); switches apply instantly, tray menu syncs; embedded page follows after restart",
   "set.alwaysOnTop": "Always on top",
   "set.alwaysOnTopDesc": "Keep the window above all others",
   "set.autostart": "Launch at login",
@@ -469,8 +470,9 @@ const zhHant: Dict = {
   "set.themeSystem": "跟隨系統",
   "set.themeDark": "深色",
   "set.themeLight": "淺色",
-  "set.language": "語言 / Language",
-  "set.langDesc": "切換即時生效；托盤選單同步更新。Embedded page follows after restart.",
+    "set.language": "語言 / Language",
+  "set.langSystem": "跟隨系統",
+  "set.langSystemDesc": "預設跟隨 Windows 顯示語言（目前：{name}）；切換即時生效，托盤選單同步；內嵌網頁重啟應用後跟隨",
   "set.alwaysOnTop": "視窗置頂",
   "set.alwaysOnTopDesc": "總是保持在其他視窗最前",
   "set.autostart": "開機自啟",
@@ -628,8 +630,9 @@ const ja: Dict = {
   "set.themeSystem": "システムに従う",
   "set.themeDark": "ダーク",
   "set.themeLight": "ライト",
-  "set.language": "言語 / Language",
-  "set.langDesc": "即時反映。トレイメニューも同期。Embedded page follows after restart.",
+    "set.language": "言語 / Language",
+  "set.langSystem": "システムに従う",
+  "set.langSystemDesc": "既定では Windows の表示言語に従います（現在:{name}）。切り替えは即時反映、トレイメニューも同期。埋め込みページは再起動後に反映",
   "set.alwaysOnTop": "常に最前面",
   "set.alwaysOnTopDesc": "常に他のウィンドウより前面に表示",
   "set.autostart": "ログイン時に起動",
@@ -787,8 +790,9 @@ const ko: Dict = {
   "set.themeSystem": "시스템 따르기",
   "set.themeDark": "다크",
   "set.themeLight": "라이트",
-  "set.language": "언어 / Language",
-  "set.langDesc": "즉시 적용. 트레이 메뉴도 동기화. Embedded page follows after restart.",
+    "set.language": "언어 / Language",
+  "set.langSystem": "시스템 따르기",
+  "set.langSystemDesc": "기본값은 Windows 표시 언어 따르기(현재: {name})입니다. 전환은 즉시 적용되며 트레이 메뉴도 동기화. 내장 페이지는 재시작 후 적용",
   "set.alwaysOnTop": "항상 위",
   "set.alwaysOnTopDesc": "항상 다른 창 위에 유지",
   "set.autostart": "로그인 시 시작",
@@ -946,8 +950,9 @@ const ru: Dict = {
   "set.themeSystem": "Системная",
   "set.themeDark": "Тёмная",
   "set.themeLight": "Светлая",
-  "set.language": "Язык / Language",
-  "set.langDesc": "Применяется сразу; меню трея синхронно. Embedded page follows after restart.",
+    "set.language": "Язык / Language",
+  "set.langSystem": "Системная",
+  "set.langSystemDesc": "По умолчанию — язык Windows (сейчас: {name}); переключение применяется сразу, меню трея синхронно; встроенная страница — после перезапуска",
   "set.alwaysOnTop": "Поверх всех окон",
   "set.alwaysOnTopDesc": "Всегда поверх остальных окон",
   "set.autostart": "Запуск при входе",
@@ -1013,6 +1018,43 @@ const ru: Dict = {
 
 const dicts: Record<Locale, Dict> = { zh, "zh-Hant": zhHant, en, ja, ko, ru };
 
+/** Language preference: a concrete locale or "system" (follow Windows). */
+export type LocalePref = Locale | "system";
+
+const LOCALES: Locale[] = ["zh", "zh-Hant", "en", "ja", "ko", "ru"];
+
+export function isLocale(value: unknown): value is Locale {
+  return typeof value === "string" && (LOCALES as string[]).includes(value);
+}
+
+function isPref(value: unknown): value is LocalePref {
+  return value === "system" || isLocale(value);
+}
+
+/** Native display name per concrete locale (dropdown + tooltips). */
+export const LANG_NATIVE: Record<Locale, string> = {
+  zh: "简体中文",
+  "zh-Hant": "繁體中文",
+  en: "English",
+  ja: "日本語",
+  ko: "한국어",
+  ru: "Русский",
+};
+
+/** Best-effort instant guess from the webview language — paints the first
+ *  frame before settings arrive; the Rust-resolved value overrides later. */
+export function guessFromNavigator(): Locale {
+  const tag = (navigator.language ?? "").toLowerCase();
+  if (tag.startsWith("zh")) {
+    return /hant|tw|hk|mo/.test(tag) ? "zh-Hant" : "zh";
+  }
+  if (tag.startsWith("ja")) return "ja";
+  if (tag.startsWith("ko")) return "ko";
+  if (tag.startsWith("ru")) return "ru";
+  if (tag.startsWith("en")) return "en";
+  return "zh";
+}
+
 /** Translator for a locale; interpolates {token} placeholders. */
 export function makeT(locale: Locale) {
   return (key: TKey, vars?: Record<string, string | number>): string => {
@@ -1030,11 +1072,19 @@ export type T = ReturnType<typeof makeT>;
 
 /** Context value: translator + live preference + setter (App owns persistence,
  *  tray rebuild happens Rust-side inside app_set_ui_locale). */
-export type I18n = { t: T; locale: Locale; setLocale: (l: Locale) => void };
+export type I18n = {
+  t: T;
+  /** Concrete locale currently rendered (Rust-resolved). */
+  locale: Locale;
+  /** Persisted preference; "system" while following Windows. */
+  localePref: LocalePref;
+  setLocale: (pref: LocalePref) => void;
+};
 
 export const LocaleContext = createContext<I18n>({
   t: makeT("zh"),
   locale: "zh",
+  localePref: "system",
   setLocale: () => {},
 });
 
@@ -1042,14 +1092,23 @@ export function useI18n(): I18n {
   return useContext(LocaleContext);
 }
 
-/** Read the persisted locale; anything unknown falls back to "zh". */
-export async function loadUiLocale(): Promise<Locale> {
+/** Read the persisted preference + the Rust-resolved concrete locale
+ *  ("system" resolves via GetUserDefaultUILanguage Rust-side). */
+export async function loadLocaleSettings(): Promise<{ pref: LocalePref; resolved: Locale }> {
   try {
-    const s = await invoke<{ uiLocale?: string }>("app_get_shell_settings");
-    const known: Locale[] = ["zh", "zh-Hant", "en", "ja", "ko", "ru"];
-    return known.includes(s.uiLocale as Locale) ? (s.uiLocale as Locale) : "zh";
+    const s = await invoke<{ uiLocale?: string; uiLocaleResolved?: string }>(
+      "app_get_shell_settings",
+    );
+    const pref = isPref(s.uiLocale) ? s.uiLocale : "system";
+    const resolved = isLocale(s.uiLocaleResolved)
+      ? s.uiLocaleResolved
+      : pref === "system"
+        ? guessFromNavigator()
+        : pref;
+    return { pref, resolved };
   } catch {
-    return "zh";
+    const resolved = guessFromNavigator();
+    return { pref: "system", resolved };
   }
 }
 

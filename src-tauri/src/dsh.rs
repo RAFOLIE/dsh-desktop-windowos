@@ -395,24 +395,70 @@ pub(crate) fn set_ui_theme(theme: &str) {
     write_settings(settings);
 }
 
-/// Shell UI locale: "zh"(default) | "en". Drives the tray menu and every
-/// user-facing toast; live switch goes through app_set_ui_locale.
+/// Shell UI locale preference: "system"(default) | "zh" | "zh-Hant" | "en" |
+/// "ja" | "ko" | "ru". Drives the tray menu and every user-facing toast;
+/// live switch goes through app_set_ui_locale.
 pub(crate) fn ui_locale() -> String {
     read_settings()
         .get("uiLocale")
         .and_then(|x| x.as_str())
-        .unwrap_or("zh")
+        .unwrap_or("system")
         .to_string()
 }
 
 pub(crate) fn set_ui_locale(locale: &str) {
     let value = match locale {
         "en" | "ja" | "ko" | "ru" | "zh-Hant" => locale,
-        _ => "zh",
+        "system" => "system",
+        _ => "system",
     };
     let mut settings = read_settings();
     settings["uiLocale"] = json!(value);
     write_settings(settings);
+}
+
+/// Map a Windows LANGID to one of the shell's supported locales. Unknown
+/// languages fall back to "zh" (the product's original default). Pure so
+/// every branch is unit-testable without touching OS state.
+fn langid_to_locale(langid: u16) -> &'static str {
+    match langid {
+        // zh-Hant: Taiwan / Hong Kong / Macau + neutral Hant
+        0x0404 | 0x0C04 | 0x1404 | 0x0004 => "zh-Hant",
+        // zh-Hans: PRC / Singapore
+        0x0804 | 0x1004 => "zh",
+        _ => match langid & 0x3FF {
+            0x09 => "en",
+            0x11 => "ja",
+            0x12 => "ko",
+            0x19 => "ru",
+            // any other Chinese sublang defaults to simplified
+            0x04 => "zh",
+            _ => "zh",
+        },
+    }
+}
+
+#[cfg(windows)]
+fn system_locale() -> String {
+    use windows_sys::Win32::Globalization::GetUserDefaultUILanguage;
+    let langid = unsafe { GetUserDefaultUILanguage() };
+    langid_to_locale(langid).to_string()
+}
+
+#[cfg(not(windows))]
+fn system_locale() -> String {
+    "zh".to_string()
+}
+
+/// The concrete locale to render: an explicit preference wins, "system"
+/// follows the Windows UI language (resolved at every call — app start for
+/// the webview scheme, per rebuild for the tray, per fetch for the panel).
+pub(crate) fn resolved_locale() -> String {
+    let pref = ui_locale();
+    if pref != "system" {
+        return pref;
+    }
+    system_locale()
 }
 
 /// Pick the current-locale string for shell-originated toasts/menus.
@@ -425,13 +471,38 @@ pub(crate) fn ui_txt6<'a>(
     ko: &'a str,
     ru: &'a str,
 ) -> &'a str {
-    match ui_locale().as_str() {
+    match resolved_locale().as_str() {
         "zh-Hant" => hant,
         "en" => en,
         "ja" => ja,
         "ko" => ko,
         "ru" => ru,
         _ => zh,
+    }
+}
+
+#[cfg(all(test, windows))]
+mod locale_tests {
+    use super::langid_to_locale;
+
+    #[test]
+    fn langid_mapping_covers_supported_languages() {
+        // Simplified: PRC / Singapore
+        assert_eq!(langid_to_locale(0x0804), "zh");
+        assert_eq!(langid_to_locale(0x1004), "zh");
+        // Traditional: Taiwan / Hong Kong / Macau / neutral
+        assert_eq!(langid_to_locale(0x0404), "zh-Hant");
+        assert_eq!(langid_to_locale(0x0C04), "zh-Hant");
+        assert_eq!(langid_to_locale(0x1404), "zh-Hant");
+        assert_eq!(langid_to_locale(0x0004), "zh-Hant");
+        // en / ja / ko / ru (a representative full LANGID each)
+        assert_eq!(langid_to_locale(0x0409), "en");
+        assert_eq!(langid_to_locale(0x0411), "ja");
+        assert_eq!(langid_to_locale(0x0412), "ko");
+        assert_eq!(langid_to_locale(0x0419), "ru");
+        // fallbacks: unknown language + unknown Chinese sublang
+        assert_eq!(langid_to_locale(0x0436), "zh"); // Afrikaans → fallback
+        assert_eq!(langid_to_locale(0x0C04 & 0), "zh"); // primary 0 → fallback
     }
 }
 

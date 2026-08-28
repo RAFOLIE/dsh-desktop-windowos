@@ -54,6 +54,7 @@ fn app_get_shell_settings() -> serde_json::Value {
         "autostart": dsh::autostart::enabled(),
         "uiTheme": dsh::ui_theme(),
         "uiLocale": dsh::ui_locale(),
+        "uiLocaleResolved": dsh::resolved_locale(),
         "appDataDir": dsh::shell_data_dir(),
     })
 }
@@ -71,17 +72,19 @@ fn app_set_ui_theme(theme: String) {
 }
 
 /// Settings tab「语言 / Language」segment: persist locale and rebuild the
-/// tray menu in place so the switch is truly live everywhere.
+/// tray menu in place so the switch is truly live everywhere. Returns the
+/// resolved locale so the frontend can render without a second round-trip.
 #[tauri::command]
-fn app_set_ui_locale(app: AppHandle, locale: String) {
+fn app_set_ui_locale(app: AppHandle, locale: String) -> String {
     dsh::set_ui_locale(&locale);
     rebuild_tray_menu(&app);
+    dsh::resolved_locale()
 }
 
 /// Tray menu built for the current locale (ids stay stable; only labels flip).
 fn build_tray_menu<M: Manager<Wry>>(manager: &M) -> tauri::Result<Menu<Wry>> {
     let (t_open, t_restart, t_restart_app, t_update, t_env, t_quit) =
-        match dsh::ui_locale().as_str() {
+        match dsh::resolved_locale().as_str() {
             "zh-Hant" => (
                 "開啟 DSH",
                 "重啟 dsh web（後端）",

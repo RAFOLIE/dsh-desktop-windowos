@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { applySkin, type UiTheme } from "./theme";
-import { useI18n, type Locale, type T } from "./i18n";
+import { LANG_NATIVE, useI18n, type LocalePref, type T } from "./i18n";
 
 /** Rust-side env_info payload (all fields nullable — probes degrade). */
 export type EnvInfo = {
@@ -813,7 +813,7 @@ function PrefRow({
 /** 设置 tab, Comfy-Desktop-style:窗口行为 + 面板偏好,全部即时保存。
  *  更新通道/自动更新刻意不在此页——归「更新」tab,避免同一配置两处入口。 */
 function SettingsTab({ currentTab }: { currentTab: Tab }) {
-  const { t, locale, setLocale } = useI18n();
+  const { t, locale, localePref, setLocale } = useI18n();
   const [cfg, setCfg] = useState<ShellSettings | null>(null);
   const [rememberTab, setRememberTab] = useState<boolean>(
     () => localStorage.getItem("epRememberTab") !== "0",
@@ -914,23 +914,25 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
           <div className="ep-row">
             <div className="ep-row-label">
               {t("set.language")}
-              <HelpHint text={t("set.langDesc")} />
+              <HelpHint text={t("set.langSystemDesc", { name: LANG_NATIVE[locale] })} />
             </div>
             <div className="ep-row-value" />
             <div className="ep-row-actions">
               {/* Dropdown so future locales are one option away; names stay
-                  in their own language by convention. */}
+                  in their own language by convention. "system" follows the
+                  Windows display language (resolved Rust-side). */}
               <div className="ep-select-wrap" style={{ width: 150, margin: 0 }}>
                 <ChannelPicker
-                  value={locale}
-                  onChange={(l) => setLocale(l as Locale)}
+                  value={localePref}
+                  onChange={(l) => setLocale(l as LocalePref)}
                   options={[
-                    { id: "zh", title: "简体中文", desc: "" },
-                    { id: "zh-Hant", title: "繁體中文", desc: "" },
-                    { id: "en", title: "English", desc: "" },
-                    { id: "ja", title: "日本語", desc: "" },
-                    { id: "ko", title: "한국어", desc: "" },
-                    { id: "ru", title: "Русский", desc: "" },
+                    { id: "system", title: t("set.langSystem"), desc: "" },
+                    { id: "zh", title: LANG_NATIVE.zh, desc: "" },
+                    { id: "zh-Hant", title: LANG_NATIVE["zh-Hant"], desc: "" },
+                    { id: "en", title: LANG_NATIVE.en, desc: "" },
+                    { id: "ja", title: LANG_NATIVE.ja, desc: "" },
+                    { id: "ko", title: LANG_NATIVE.ko, desc: "" },
+                    { id: "ru", title: LANG_NATIVE.ru, desc: "" },
                   ]}
                   hideDesc
                 />
