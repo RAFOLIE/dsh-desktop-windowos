@@ -421,16 +421,24 @@ function ChannelPicker({
   useEffect(() => {
     if (!open) return;
     const close = () => setOpen(false);
+    // Scroll-to-close ignores scrolls inside the menu itself: with enough
+    // options (the 7-entry language list) the menu overflows and MUST
+    // scroll — a capture-phase listener would otherwise close on it.
+    const onScroll = (event: Event) => {
+      const t = event.target;
+      if (t instanceof Element && t.closest(".ep-select-menu")) return;
+      setOpen(false);
+    };
     const onDown = (event: MouseEvent) => {
       const t = event.target as HTMLElement;
       if (!t.closest(".ep-select-menu") && !btnRef.current?.contains(t)) setOpen(false);
     };
     window.addEventListener("resize", close);
-    window.addEventListener("scroll", close, true);
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("mousedown", onDown);
     return () => {
       window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("mousedown", onDown);
     };
   }, [open]);
