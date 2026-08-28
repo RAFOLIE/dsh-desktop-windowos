@@ -1064,13 +1064,16 @@ export function guessFromNavigator(): Locale {
   if (tag.startsWith("ko")) return "ko";
   if (tag.startsWith("ru")) return "ru";
   if (tag.startsWith("en")) return "en";
-  return "zh";
+  // unadapted languages default to English (locale policy)
+  return "en";
 }
 
 /** Translator for a locale; interpolates {token} placeholders. */
 export function makeT(locale: Locale) {
   return (key: TKey, vars?: Record<string, string | number>): string => {
-    let text = dicts[locale][key] ?? zh[key];
+    // Key-level fallback: English first, then the source (zh) dict. The type
+    // system keeps dicts complete — this only guards runtime drift.
+    let text = dicts[locale][key] ?? (locale !== "en" ? en[key] : undefined) ?? zh[key];
     if (vars) {
       for (const [k, v] of Object.entries(vars)) {
         text = text.split(`{${k}}`).join(String(v));

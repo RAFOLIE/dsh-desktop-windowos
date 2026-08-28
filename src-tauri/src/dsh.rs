@@ -417,9 +417,10 @@ pub(crate) fn set_ui_locale(locale: &str) {
     write_settings(settings);
 }
 
-/// Map a Windows LANGID to one of the shell's supported locales. Unknown
-/// languages fall back to "zh" (the product's original default). Pure so
-/// every branch is unit-testable without touching OS state.
+/// Map a Windows LANGID to one of the shell's supported locales. Languages
+/// we don't ship fall back to "en" (the international fallback; policy:
+/// unadapted languages default to English). Pure so every branch is
+/// unit-testable without touching OS state.
 fn langid_to_locale(langid: u16) -> &'static str {
     match langid {
         // zh-Hant: Taiwan / Hong Kong / Macau + neutral Hant
@@ -431,9 +432,10 @@ fn langid_to_locale(langid: u16) -> &'static str {
             0x11 => "ja",
             0x12 => "ko",
             0x19 => "ru",
-            // any other Chinese sublang defaults to simplified
+            // any other Chinese sublang is still Chinese (adapted)
             0x04 => "zh",
-            _ => "zh",
+            // everything else (fr/de/es/...) is unadapted → English
+            _ => "en",
         },
     }
 }
@@ -447,7 +449,7 @@ fn system_locale() -> String {
 
 #[cfg(not(windows))]
 fn system_locale() -> String {
-    "zh".to_string()
+    "en".to_string()
 }
 
 /// The concrete locale to render: an explicit preference wins, "system"
@@ -500,9 +502,10 @@ mod locale_tests {
         assert_eq!(langid_to_locale(0x0411), "ja");
         assert_eq!(langid_to_locale(0x0412), "ko");
         assert_eq!(langid_to_locale(0x0419), "ru");
-        // fallbacks: unknown language + unknown Chinese sublang
-        assert_eq!(langid_to_locale(0x0436), "zh"); // Afrikaans → fallback
-        assert_eq!(langid_to_locale(0x0C04 & 0), "zh"); // primary 0 → fallback
+        // unadapted languages default to English (fr / af / primary 0)
+        assert_eq!(langid_to_locale(0x040C), "en"); // French
+        assert_eq!(langid_to_locale(0x0436), "en"); // Afrikaans
+        assert_eq!(langid_to_locale(0x0000), "en");
     }
 }
 
