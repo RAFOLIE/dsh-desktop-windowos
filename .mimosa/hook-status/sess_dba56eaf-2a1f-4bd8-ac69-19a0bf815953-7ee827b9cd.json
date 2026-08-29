@@ -1,14 +1,14 @@
 {
   "schemaVersion": "mimosa-hook-status/v1",
-  "recordedAt": "2026-08-28T02:39:10.665Z",
+  "recordedAt": "2026-08-29T02:29:19.527Z",
   "sessionId": "sess_dba56eaf-2a1f-4bd8-ac69-19a0bf815953",
   "event": "PostToolUse",
-  "toolName": "Write",
-  "file": "C:/dsh-build-target/_rel_notes_v1643.md",
+  "toolName": "Edit",
+  "file": "src-tauri/src/menu.rs",
   "outcome": "clear",
   "coverage": "complete",
   "findingCount": 0,
-  "durationMs": 8,
+  "durationMs": 16,
   "hostState": "hook_complete",
   "reportHint": ".mimosa/reports/"
 }

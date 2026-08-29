@@ -98,15 +98,17 @@ pub(crate) const MENU_SCRIPT: &str = r#"
     e.stopPropagation();
     showMenu(e.clientX, e.clientY, a.href);
   }, true);
-  // Left-click backstop for external links (issue #7): plain http(s) anchors
-  // with no target are supposed to navigate the iframe away, which reads as
-  // "the link does nothing/loses the app". Route them to the system browser
-  // ourselves instead of relying on the new-window path alone.
+  // Left-click backstop for external links (issue #7): route http(s) anchors
+  // to the system browser ourselves. target=_blank anchors are intercepted
+  // TOO (no exemption): on v1.6.44 a user proved market links with
+  // target=_blank are dead in-shell — WebView2 does not reliably raise the
+  // new-window path for them, while window.open demonstrably works (the
+  // right-click menu uses it). preventDefault cancels the (broken) native
+  // activation, so no double-open.
   document.addEventListener('click', function (e) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
     if (!a) return;
-    if (a.target && a.target !== '_self') return; // target=_blank rides the new-window handler
     var href = a.getAttribute('href') || '';
     if (!/^https?:\/\//i.test(href)) return;
     if (location.origin && href.toLowerCase().indexOf(location.origin.toLowerCase()) === 0) return;
