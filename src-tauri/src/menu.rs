@@ -49,21 +49,33 @@ pub(crate) const MENU_SCRIPT: &str = r#"
 (function () {
   if (window.__dshLinkMenu) return;
   if (location.origin !== 'http://127.0.0.1:3080') return;
-  if (document.readyState === 'loading') return; // retried by the next poll
-  window.__dshLinkMenu = true;
+  // AddScriptToExecuteOnDocumentCreated runs BEFORE parsing completes, so
+  // readyState is 'loading' here and a plain return would silently skip the
+  // whole script — the old comment claimed a retry poll that never existed,
+  // so nothing ever installed (diagnosed by a user on issue #7). A
+  // DOMContentLoaded listener registered now is guaranteed to fire.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', install, { once: true });
+    return;
+  }
+  install();
 
-  var menu = null;
-  function closeMenu() {
-    if (menu) { menu.remove(); menu = null; }
-  }
-  function openInBrowser(url) {
-    // New-window request; the shell's fallback opens it in the system browser.
-    window.open(url, '_blank', 'noopener');
-  }
-  function copyLink(url) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url);
+  function install() {
+    if (window.__dshLinkMenu) return;
+    window.__dshLinkMenu = true;
+
+    var menu = null;
+    function closeMenu() {
+      if (menu) { menu.remove(); menu = null; }
     }
+    function openInBrowser(url) {
+      // New-window request; the shell's fallback opens it in the system browser.
+      window.open(url, '_blank', 'noopener');
+    }
+    function copyLink(url) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url);
+      }
   }
   function showMenu(x, y, url) {
     closeMenu();
@@ -120,5 +132,6 @@ pub(crate) const MENU_SCRIPT: &str = r#"
   }, true);
   window.addEventListener('blur', closeMenu);
   window.addEventListener('resize', closeMenu);
+  }
 })();
 "#;
