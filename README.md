@@ -48,7 +48,7 @@ DeepSeek Harness(DSH)的 Windows 桌面壳,基于 **Tauri v2 + React 18 + TypeSc
 - **一键重启 DSH**:托盘「重启 dsh web(后端)」只重启 DSH 服务(会话数据在 `~/.dsh` 持久化);「前后端重启」连壳带后端全新拉起(无论后端是谁启动的都会清干净),新装插件随之加载,插件卡死 webchat 时一键满血——面板「更多」里也有同款
 - **托盘图标固定任务栏**:启动时自动写入 Windows 通知区域设置(`IsPromoted`),图标不再每次被收进任务栏角溢出
 - **任务完成通知**:会话从运行中转为空闲时弹 Windows 系统通知,带两个按钮——**「打开窗口」**(复现并聚焦窗口)和**「明白」**(收起通知);不点击则数秒后自动收起
-- **链接右键菜单**:在聊天里的链接上右键,显示简洁菜单「在浏览器中打开」/「复制链接」(替换误导性的 WebView2 默认菜单);左键点击外链仍由系统默认浏览器打开
+- **外链统一接管**:聊天/插件市场里的 http(s) 外链,左键点击与右键「在浏览器中打开」都会送达系统默认浏览器——包括 target=_blank 等在壳内会被 WebView2 吞掉激活的链接(替换误导性的 WebView2 默认菜单)
 - **附加模式**:启动时若 3080 已有 DSH 在跑,直接连接不重复拉起;退出时也**不会动**别人(先于应用存在)的实例
 - **干净退出**:仅托盘右键 → 「退出(关闭 DSH)」才真正退出,自动 `taskkill /T` 杀掉自己拉起的整棵进程树,零孤儿进程
 - **防重复实例**:exe 被再次双击只会唤回已有窗口,不会开第二个
@@ -76,7 +76,7 @@ dsh plugin --profile web add dsh-desktop-plugin
 
 重启 DSH 后插件自动把 exe 装到 `%LOCALAPPDATA%\Programs\dsh-desktop-windowos\`,并在桌面生成**两个**快捷方式——「DeepSeek Harness」(桌面应用)和「DeepSeek Harness Web」(浏览器打开前端);之后每次激活还会**自动升级** exe 到最新 Release(应用运行中也能安全替换)。对话里说“打开桌面应用”可通过 `desktop_launch` 工具直接拉起(exe 缺失时走**后台任务安装**,完成后自动启动,聊天里可轮询进度)。首次运行 exe 会弹 SmartScreen(未签名),点「更多信息 → 仍要运行」即可。
 
-**插件 npm 与应用是两条独立版本线**(npm 现 1.5.11,应用现 v1.6.44,不一致是**有意设计**)——npm 只在插件代码变更时发布,内容相同的空包只会触发所有用户的插件市场更新提示与重复下载;应用走 GitHub Release 自由前进,桌面端启动时自动把已装插件对齐 npm 最新版(只升不降)。详见 [plugin/README.md](plugin/README.md)。
+**插件 npm 与应用是两条独立版本线**(npm 现 1.5.11,应用现 v1.6.45,不一致是**有意设计**)——npm 只在插件代码变更时发布,内容相同的空包只会触发所有用户的插件市场更新提示与重复下载;应用走 GitHub Release 自由前进,桌面端启动时自动把已装插件对齐 npm 最新版(只升不降)。详见 [plugin/README.md](plugin/README.md)。
 
 **方式二:直接下载 exe**
 
@@ -180,7 +180,7 @@ Not bundled with the exe:
 dsh plugin --profile web add dsh-desktop-plugin
 ```
 
-After restarting DSH, the plugin auto-installs the exe into `%LOCALAPPDATA%\Programs\dsh-desktop-windowos` and creates **two** desktop shortcuts — "DeepSeek Harness" (the desktop app) and "DeepSeek Harness Web" (the web UI in a browser); each later activation also **auto-updates** the exe to the latest Release (safe even while the app is running). Saying "open the desktop app" in chat launches it via the `desktop_launch` tool (a missing exe installs as a **background job** that auto-launches when done, with progress pollable in chat). First run of the unsigned exe shows SmartScreen — click "More info → Run anyway". **The plugin npm and the app run on two independent version lines** (npm currently 1.5.11, app currently v1.6.44 — the mismatch is deliberate): npm publishes only when the plugin code changes, since identical empty packages would just trigger update prompts and re-downloads for every plugin user; the app advances freely via GitHub Releases, and the desktop app aligns installed plugins to npm latest (upgrade only). See [plugin/README.md](plugin/README.md).
+After restarting DSH, the plugin auto-installs the exe into `%LOCALAPPDATA%\Programs\dsh-desktop-windowos` and creates **two** desktop shortcuts — "DeepSeek Harness" (the desktop app) and "DeepSeek Harness Web" (the web UI in a browser); each later activation also **auto-updates** the exe to the latest Release (safe even while the app is running). Saying "open the desktop app" in chat launches it via the `desktop_launch` tool (a missing exe installs as a **background job** that auto-launches when done, with progress pollable in chat). First run of the unsigned exe shows SmartScreen — click "More info → Run anyway". **The plugin npm and the app run on two independent version lines** (npm currently 1.5.11, app currently v1.6.45 — the mismatch is deliberate): npm publishes only when the plugin code changes, since identical empty packages would just trigger update prompts and re-downloads for every plugin user; the app advances freely via GitHub Releases, and the desktop app aligns installed plugins to npm latest (upgrade only). See [plugin/README.md](plugin/README.md).
 
 **Option B: download the exe directly**
 
