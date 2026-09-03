@@ -1,37 +1,14 @@
 {
   "schemaVersion": "mimosa-hook-status/v1",
-  "recordedAt": "2026-08-29T10:44:14.825Z",
+  "recordedAt": "2026-09-03T01:41:05.179Z",
   "sessionId": "sess_dba56eaf-2a1f-4bd8-ac69-19a0bf815953",
-  "event": "PreToolUse",
-  "toolName": "Write",
-  "file": "C:/dsh-build-target/_check_menu_script.js",
-  "outcome": "blocked",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "src/App.tsx",
+  "outcome": "clear",
   "coverage": "complete",
-  "findingCount": 1,
-  "durationMs": 911,
-  "telemetry": {
-    "schemaVersion": "mimosa-gate-telemetry/v1",
-    "profile": "gate",
-    "operation": "PreToolUse",
-    "outcome": "complete",
-    "latencyMs": 911,
-    "peakMemoryBytes": 197201920,
-    "memoryMeasurement": "max-observed-process-rss",
-    "scannedFiles": 1,
-    "cache": {
-      "hits": 0,
-      "misses": 1,
-      "measurement": "not-applicable"
-    },
-    "denyCount": 1,
-    "tokens": {
-      "input": 0,
-      "output": 0,
-      "total": 0,
-      "modelCalls": 0,
-      "measurement": "known-zero"
-    }
-  },
-  "hostState": "hook_complete_waiting_host_tool_decision",
+  "findingCount": 0,
+  "durationMs": 11,
+  "hostState": "hook_complete",
   "reportHint": ".mimosa/reports/"
 }

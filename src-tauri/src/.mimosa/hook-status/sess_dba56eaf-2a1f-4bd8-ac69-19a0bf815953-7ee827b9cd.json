@@ -1,37 +1,14 @@
 {
   "schemaVersion": "mimosa-hook-status/v1",
-  "recordedAt": "2026-08-28T01:53:40.558Z",
+  "recordedAt": "2026-09-03T01:38:48.825Z",
   "sessionId": "sess_dba56eaf-2a1f-4bd8-ac69-19a0bf815953",
-  "event": "PreToolUse",
+  "event": "PostToolUse",
   "toolName": "Edit",
-  "file": "D:\\AI\\DSH\\dsh-desktop-windowos\\src\\i18n.ts",
-  "outcome": "inconclusive",
-  "coverage": "partial",
+  "file": "lib.rs",
+  "outcome": "clear",
+  "coverage": "complete",
   "findingCount": 0,
-  "durationMs": 889,
-  "telemetry": {
-    "schemaVersion": "mimosa-gate-telemetry/v1",
-    "profile": "gate",
-    "operation": "PreToolUse",
-    "outcome": "partial/INCONCLUSIVE",
-    "latencyMs": 889,
-    "peakMemoryBytes": 137039872,
-    "memoryMeasurement": "max-observed-process-rss",
-    "scannedFiles": 1,
-    "cache": {
-      "hits": 0,
-      "misses": 1,
-      "measurement": "not-applicable"
-    },
-    "denyCount": 0,
-    "tokens": {
-      "input": 0,
-      "output": 0,
-      "total": 0,
-      "modelCalls": 0,
-      "measurement": "known-zero"
-    }
-  },
-  "hostState": "hook_complete_waiting_host_tool_decision",
+  "durationMs": 11,
+  "hostState": "hook_complete",
   "reportHint": ".mimosa/reports/"
 }

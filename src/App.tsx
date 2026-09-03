@@ -67,6 +67,9 @@ function App() {
   /** The iframe mounts on the first `ready` and stays mounted for the rest of
    *  the session; boot regressions (restart / crash heal) only hide it. */
   const [webchatMounted, setWebchatMounted] = useState(false);
+  /** iframe URL: plain 3080 for legacy dsh; `?token=` appended when the
+   *  backend enforces BrowserAuth (issue #10) — refreshed on every ready. */
+  const [webchatSrc, setWebchatSrc] = useState(WEBCHAT_URL);
   /** Whether the webchat is on screen (boot/error/update-wait views cover it). */
   const [chatVisible, setChatVisible] = useState(false);
   /** Bumped on every ready *transition* after the first mount — remounts the
@@ -167,6 +170,16 @@ function App() {
               mountedRef.current = true;
               setWebchatMounted(true);
             }
+            // BrowserAuth dsh (issue #10) needs the session token appended to
+            // the iframe URL; legacy dsh yields null → plain URL. Refreshed on
+            // every ready edge so a restarted backend's fresh token is picked up.
+            invoke<string | null>("dsh_browser_session_token")
+              .then((token) =>
+                setWebchatSrc(
+                  token ? `${WEBCHAT_URL}/?token=${encodeURIComponent(token)}` : WEBCHAT_URL,
+                ),
+              )
+              .catch(() => setWebchatSrc(WEBCHAT_URL));
             // The port owner / pid facts only mean something once DSH is up.
             refreshEnv();
           }
@@ -257,7 +270,7 @@ function App() {
         {webchatMounted && (
           <iframe
             key={reloadKey}
-            src={WEBCHAT_URL}
+            src={webchatSrc}
             className="webchat"
             title="DSH webchat"
             allow="clipboard-read; clipboard-write; fullscreen"

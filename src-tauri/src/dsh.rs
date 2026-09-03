@@ -509,6 +509,39 @@ mod locale_tests {
     }
 }
 
+#[cfg(test)]
+mod browser_session_tests {
+    use super::browser_session_token_from_yaml;
+
+    #[test]
+    fn browserauth_yaml_yields_token() {
+        let yaml = "version: 1\nclient-connection:\n  browser-session: Tq1v2x9kA33bbZz7cC0dEe4fF5gG6hH7iI8jJ9kK0lL\n";
+        assert_eq!(
+            browser_session_token_from_yaml(yaml).as_deref(),
+            Some("Tq1v2x9kA33bbZz7cC0dEe4fF5gG6hH7iI8jJ9kK0lL")
+        );
+    }
+
+    #[test]
+    fn provider_refs_yaml_yields_none() {
+        // 0.1.1-rc.2 shape: provider OAuth refs only — must NOT be mistaken
+        // for a browser-session token.
+        let yaml = "version: 1\nrefs:\n  ZAI_CODING: 14011c49abcd.efgh1234\n  DEEPSEEK: 14011c49abcd.efgh1234\n";
+        assert!(browser_session_token_from_yaml(yaml).is_none());
+    }
+
+    #[test]
+    fn malformed_yaml_yields_none() {
+        assert!(browser_session_token_from_yaml("::: not yaml {").is_none());
+    }
+
+    #[test]
+    fn blank_or_short_token_yields_none() {
+        assert!(browser_session_token_from_yaml("client-connection:\n  browser-session: \"   \"\n").is_none());
+        assert!(browser_session_token_from_yaml("client-connection:\n  browser-session: short\n").is_none());
+    }
+}
+
 /// Directory holding dsh.log / settings.json — the「应用数据目录」row.
 pub(crate) fn shell_data_dir() -> Option<String> {
     log_path()
@@ -581,6 +614,14 @@ fn custom_dsh_path() -> Option<String> {
 
 /// Probe 3080 once with a real `host.describe` RPC; true if DSH answers healthy.
 /// A plain TCP connect is not enough — an open port is not necessarily DSH.
+/// Which HTTP status from `/api/host.describe` proves dsh owns port 3080.
+/// 200: a healthy dsh answering the RPC envelope. 401: the `/api` trust
+/// fence of a BrowserAuth build (issue #10) — dsh is alive, we just lack
+/// credentials. Other statuses (404 etc.) mean a foreign service.
+fn http_status_means_alive(status: u16) -> bool {
+    status == 200 || status == 401
+}
+
 pub(crate) fn probe_ready_once() -> bool {
     let body = json!({
         "type": "client-request",
@@ -594,11 +635,23 @@ pub(crate) fn probe_ready_once() -> bool {
         .timeout(Duration::from_secs(3))
         .send_json(body);
     match response {
-        Ok(r) => match r.into_json::<Value>() {
-            // Ready ⇔ the four-quadrant RPC envelope returns result.ok == true.
-            Ok(v) => v.get("result").and_then(|x| x.get("ok")) == Some(&json!(true)),
-            Err(_) => false,
-        },
+        Ok(r) => {
+            let status = r.status();
+            // BrowserAuth builds (issue #10) answer every unauthenticated
+            // /api call with 401 — that refusal itself proves dsh owns the
+            // port, so the shell must not report "dsh not found".
+            if status == 401 {
+                return true;
+            }
+            if !http_status_means_alive(status) {
+                return false;
+            }
+            match r.into_json::<Value>() {
+                // Ready ⇔ the four-quadrant RPC envelope returns result.ok == true.
+                Ok(v) => v.get("result").and_then(|x| x.get("ok")) == Some(&json!(true)),
+                Err(_) => false,
+            }
+        }
         Err(_) => false,
     }
 }
@@ -1949,6 +2002,41 @@ pub(crate) fn system_apps_dark() -> bool {
         .and_then(|k| k.get_value::<u32, _>("AppsUseLightTheme"))
         .map(|light| light == 0)
         .unwrap_or(true)
+}
+
+/// Locate `~/.dsh/.credentials.yaml`, refusing suspicious USERPROFILE
+/// values (empty or containing `..` traversal segments).
+fn credentials_yaml_path() -> Option<std::path::PathBuf> {
+    let home = std::env::var("USERPROFILE").ok()?;
+    if home.is_empty() || home.split(['/', '\\']).any(|seg| seg == "..") {
+        return None;
+    }
+    Some(Path::new(&home).join(".dsh").join(".credentials.yaml"))
+}
+
+/// Extract the browser-session token from the text of
+/// `~/.dsh/.credentials.yaml` as written by BrowserAuth-enabled dsh builds
+/// (`client-connection.browser-session`). Defensive: missing keys, foreign
+/// shapes (e.g. 0.1.1-rc.2's provider `refs` map), malformed YAML and blank
+/// values all yield None — the caller then falls back to token-less URLs.
+fn browser_session_token_from_yaml(text: &str) -> Option<String> {
+    let value: serde_yaml::Value = serde_yaml::from_str(text).ok()?;
+    let token = value
+        .get("client-connection")?
+        .get("browser-session")?
+        .as_str()?
+        .trim();
+    let usable = !token.is_empty()
+        && token.len() >= 20
+        && token.chars().all(|c| !c.is_whitespace() && !c.is_control());
+    usable.then(|| token.to_string())
+}
+
+/// Read the browser-session token from the live credentials file.
+pub(crate) fn browser_session_token() -> Option<String> {
+    let path = credentials_yaml_path()?;
+    let text = std::fs::read_to_string(path).ok()?;
+    browser_session_token_from_yaml(&text)
 }
 
 #[cfg(all(test, windows))]

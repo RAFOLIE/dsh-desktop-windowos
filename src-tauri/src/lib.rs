@@ -172,6 +172,14 @@ fn app_set_always_on_top(app: AppHandle, enable: bool) {
     dsh::set_always_on_top(enable);
 }
 
+/// Frontend-invoked by the webchat mount flow (issue #10): returns the
+/// browser-session token from ~/.dsh/.credentials.yaml when the running dsh
+/// enforces BrowserAuth; None (legacy dsh) → the iframe uses a plain URL.
+#[tauri::command]
+fn dsh_browser_session_token() -> Option<String> {
+    dsh::browser_session_token()
+}
+
 /// Frontend-invoked environment facts for the env panel.
 #[tauri::command]
 fn env_info(app: AppHandle) -> serde_json::Value {
@@ -550,7 +558,7 @@ pub fn run() {    tauri::Builder::default()
         }))
         .plugin(tauri_plugin_opener::init())
         .manage(dsh::DshState::new())
-        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
+        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
         .setup(|app| {
             // Session-start log rotation (ComfyUI-style) before anything logs
             // or spawns: previous session archived under a timestamped name.
