@@ -93,16 +93,27 @@ struct Candidate {
 /// `node_modules\.bin\dsh.cmd`, and the npx download the user consented to.
 /// An empty chain means "no local DSH" — startup reports `notfound` and the
 /// boot page asks the user.
-/// The default working directory is the user profile — a neutral, writable
-/// dir that never depends on a repo location. A stale `DSH_CWD` pointing at a
-/// deleted directory falls back to the profile dir instead of failing every
-/// spawn with "directory name invalid" (os error 267).
+/// The default working directory is `%USERPROFILE%\.dsh` — a dsh-specific,
+/// always-writable dir that never depends on a repo location or install path.
+/// Pinning ALL candidates to the same cwd ensures the session workspace scope
+/// stays consistent across candidate switches and dsh upgrades (issue: user
+/// reported conversations "disappearing" after the working directory changed).
+/// A stale `DSH_CWD` pointing at a deleted directory falls back to the same
+/// fixed dir instead of failing every spawn with "directory name invalid"
+/// (os error 267).
 fn candidates() -> Vec<Candidate> {
     let home = std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
+    // Fixed cwd: dsh-specific dir under the user profile. Every candidate
+    // (and every dsh version) shares this, so the session workspace scope
+    // never changes between launches.
     let cwd = std::env::var("DSH_CWD")
         .ok()
         .filter(|dir| Path::new(dir).is_dir())
-        .unwrap_or_else(|| home.clone());
+        .unwrap_or_else(|| {
+            let dsh_home = Path::new(&home).join(".dsh");
+            let _ = std::fs::create_dir_all(&dsh_home);
+            dsh_home.display().to_string()
+        });
     let mut list = Vec::new();
     if let Ok(cmd) = std::env::var("DSH_CMD") {
         if !cmd.trim().is_empty() {
@@ -140,7 +151,7 @@ fn candidates() -> Vec<Candidate> {
         list.push(Candidate {
             label: format!("本地安装({})", root.display()),
             cmd: format!("\"{}\" web{}", shim.display(), no_open_suffix(&shim.display().to_string())),
-            cwd: root.display().to_string(),
+            cwd: cwd.clone(),
             window: GLOBAL_WINDOW,
         });
     }
@@ -506,6 +517,24 @@ mod locale_tests {
         assert_eq!(langid_to_locale(0x040C), "en"); // French
         assert_eq!(langid_to_locale(0x0436), "en"); // Afrikaans
         assert_eq!(langid_to_locale(0x0000), "en");
+    }
+}
+
+#[cfg(test)]
+mod cwd_tests {
+    use super::*;
+
+    #[test]
+    fn all_candidates_share_the_same_cwd() {
+        std::env::remove_var("DSH_CWD");
+        let list = candidates();
+        if list.len() > 1 {
+            let first = &list[0].cwd;
+            assert!(
+                list.iter().all(|c| &c.cwd == first),
+                "all candidates must share the same cwd"
+            );
+        }
     }
 }
 
