@@ -268,16 +268,27 @@ fn dsh_backend_upgrade(app: AppHandle, channel: Option<String>) -> Result<String
     // the new dsh is incompatible (issue #11 scenario).
     dsh::save_previous_dsh_version();
     dsh::stop_backend(&app);
-    let stamp = update::upgrade_backend(channel)?;
-    // Bring the backend back on the fresh version via the normal chain.
+
+    // Run the upgrade in a background thread — `npm i -g` can take minutes
+    // and blocking the command handler causes the window to freeze.
+    let app_bg = app.clone();
+    let channel = channel.clone();
     std::thread::spawn(move || {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        while dsh::probe_ready_once() && std::time::Instant::now() < deadline {
-            std::thread::sleep(std::time::Duration::from_millis(500));
+        match update::upgrade_backend(channel) {
+            Ok(stamp) => {
+                use tauri::Emitter;
+                let _ = app_bg.emit("dsh-upgrade-done", &stamp);
+            }
+            Err(e) => {
+                use tauri::Emitter;
+                let _ = app_bg.emit("dsh-upgrade-error", &e);
+            }
         }
-        dsh::startup(app.clone());
+        // Bring the backend back on the fresh version via the normal chain.
+        dsh::startup(app_bg.clone());
     });
-    Ok(stamp)
+
+    Ok("升级中…".to_string())
 }
 
 /// Roll back the global dsh to the version saved before the last upgrade.
