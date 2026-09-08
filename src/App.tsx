@@ -430,6 +430,13 @@ function App() {
                 </button>
                 <button
                   type="button"
+                  className="btn-secondary"
+                  onClick={() => invoke<string>("dsh_rollback_dsh").then(() => invoke("dsh_retry")).catch(() => {})}
+                >
+                  {t("err.rollback")}
+                </button>
+                <button
+                  type="button"
                   className="boot-log-link"
                   onClick={() => setOverlay("log")}
                 >

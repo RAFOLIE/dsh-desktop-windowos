@@ -2068,6 +2068,51 @@ pub(crate) fn browser_session_token() -> Option<String> {
     browser_session_token_from_yaml(&text)
 }
 
+/// Roll back the global dsh install to the last known-good version
+/// (saved before the upgrade that broke it).
+pub(crate) fn rollback_dsh_to_previous() -> Result<(), String> {
+    let version = read_previous_dsh_version()
+        .ok_or_else(|| "没有保存的回滚版本".to_string())?;
+    let npm = where_first("npm")
+        .ok_or_else(|| "未找到 npm(需要已安装 Node.js)".to_string())?;
+    let cmd = format!("\"{npm}\" install -g @deepseek-ai/dsh@{version}");
+    let ok = run_bounded(&cmd, Duration::from_secs(600), "dsh rollback");
+    if ok {
+        log_write(LogLevel::Info, &format!("[dsh-desktop] rolled back dsh to {version}"));
+        Ok(())
+    } else {
+        Err(format!("回滚到 {version} 失败——详见日志标签页"))
+    }
+}
+
+/// Path of the "known-good dsh version" marker written before each upgrade
+/// so the shell can offer a rollback if the new version is incompatible.
+fn previous_version_path() -> std::path::PathBuf {
+    Path::new(&std::env::var("USERPROFILE").unwrap_or_default())
+        .join(".dsh")
+        .join(".previous_dsh_version")
+}
+
+/// Save the current dsh CLI version before an upgrade so the shell can
+/// offer a rollback if the new version is incompatible (issue #11 scenario).
+pub(crate) fn save_previous_dsh_version() {
+    let version = run_capture("dsh.cmd", &["--version"])
+        .or_else(|| run_capture("dsh", &["--version"]))
+        .unwrap_or_default();
+    let version = version.trim().trim_start_matches('v').to_string();
+    if version.is_empty() {
+        return;
+    }
+    let _ = std::fs::write(previous_version_path(), &version);
+}
+
+/// The last known-good dsh version saved before an upgrade.
+pub(crate) fn read_previous_dsh_version() -> Option<String> {
+    let text = std::fs::read_to_string(previous_version_path()).ok()?;
+    let trimmed = text.trim().to_string();
+    (!trimmed.is_empty()).then_some(trimmed)
+}
+
 #[cfg(all(test, windows))]
 mod tests {
     use super::*;
