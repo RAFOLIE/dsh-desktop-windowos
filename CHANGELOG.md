@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.6.50 — 2026-09-10 【开发版/预发布】issue #12
+
+加固:**就绪探测多端点阶梯**,覆盖 0.1.2 中间版本的「404 先于鉴权栅栏」行为。
+
+- **问题**(issue #12 + JinCaiRenSheng 实测):`host.describe` 在 0.1.2 的 unary-apiproxy→remote 迁移中已被删除,部分构建(如 0.1.2-rc.1)对已删端点回 **404** 而非 401——判活只认 200/401 时探测恒 false,壳「就绪超时」误杀健康后端。v1.6.49 修了 401 路径(ureq Err 语义),本版补齐 404 路径
+- **探测阶梯**:①`POST /api/host.describe`(≤0.1.1,200+ok=存活)→ ②404 时降打 `POST /api/session/list`(0.1.2+ 必有端点:401=鉴权栅栏存活;200+server-response 信封=typert 网关应答存活——空载荷探测返回 ok:false/arguments-invalid,同样是 dsh 形状的应答,只要求信封)→ 两者皆不中=非 dsh/无服务
+- 修正注释假设:404 ≠ 「端口被外来服务占用」——对 0.1.2+ 它是对已删端点的正常回答
+- README 前提条件表新增「DSH 版本兼容」行(双代自适应,≥0.1.2 需壳 v1.6.49+)
+- 单测:probe 判定矩阵覆盖三代行为(12/12 通过);实机验证 0.1.5-rc.1(401 路径)+ 0.1.2-rc.1 行为仿真(404→session/list 兜底,正确附加)双向通过
+
+Hardening (issue #12): the readiness probe now walks an endpoint ladder — host.describe (≤0.1.1) and, on 404 (endpoint deleted in 0.1.2's apiproxy→remote migration, answered before the auth fence on some builds), session/list whose 401 fence or typert-gateway envelope proves a live 0.1.2+ dsh. Verified against 0.1.5-rc.1 live and a 0.1.2-generation simulator.
+
 ## v1.6.49 — 2026-09-10 【开发版/预发布】
 
 适配:**dsh web 0.1.2+ 新鉴权体系**(进程 launch token + SameSite=Strict 签名 Cookie;npm latest 现指向 0.1.5-rc.1),旧版 dsh(≤0.1.1-rc.2)行为逐字节保留。

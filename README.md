@@ -65,6 +65,7 @@ DeepSeek Harness(DSH)的 Windows 桌面壳,基于 **Tauri v2 + React 18 + TypeSc
 |---|---|
 | Node.js | ^22.19 或 ≥ 24(**必须**;DSH 的 Node 版本要求) |
 | DSH | 可选,三种方式任一:全局安装 `npm i -g @deepseek-ai/dsh`(最快,推荐);本地安装(在 exe 旁或任意被搜索目录执行 `pnpm add @deepseek-ai/dsh`);都没有则首次启动时点「下载并启动」走 npx |
+| DSH 版本兼容 | 新旧两代自适应(**壳 ≥ v1.6.49**):≤0.1.1-rc.2(无鉴权)与 ≥0.1.2-alpha.1(进程 token + Cookie 浏览器鉴权、`/api` 端点斜杠化)均可直接用;旧壳(≤v1.6.48)配 ≥0.1.2 的 dsh 会出现就绪探测失效/内嵌页 401——升级壳或用其「回滚之前版本」按钮退回 dsh |
 | 从源码跑 DSH 的开发者 | 设 `DSH_CMD`(`pnpm dsh web`)与 `DSH_CWD`(DSH 仓库路径)环境变量 |
 | WebView2 | Windows 11 自带 |
 

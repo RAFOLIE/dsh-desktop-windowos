@@ -679,53 +679,75 @@ fn custom_dsh_path() -> Option<String> {
         .filter(|path| Path::new(path).is_file())
 }
 
-/// Probe 3080 once with a real `host.describe` RPC; true if DSH answers healthy.
-/// A plain TCP connect is not enough — an open port is not necessarily DSH.
-/// Which HTTP status from `/api/host.describe` proves dsh owns port 3080.
-/// 200: a healthy dsh answering the RPC envelope. 401: the `/api` trust
-/// fence of a BrowserAuth build (issue #10) — dsh is alive, we just lack
-/// credentials. Other statuses (404 etc.) mean a foreign service.
-fn http_status_means_alive(status: u16) -> bool {
-    status == 200 || status == 401
-}
-
-pub(crate) fn probe_ready_once() -> bool {
+/// One RPC probe against `/api/<endpoint>` with the client-request envelope.
+/// Returns the HTTP status (0 = unreachable/timeout) and the parsed JSON body
+/// when one came back. ureq 2.x hands every 4xx/5xx over as
+/// `Err(Error::Status(code, resp))` — normalized here so the verdict logic
+/// sees one shape (the v1.6.47 "401 = alive" branch sat on the `Ok` path and
+/// was dead code for exactly this reason, issues #10/#12).
+fn rpc_probe(endpoint: &str) -> (u16, Option<Value>) {
     let body = json!({
         "type": "client-request",
         "rpcId": Uuid::new_v4().to_string(),
-        "method": "host.describe",
+        "method": endpoint,
         "payload": {}
     });
-    let response = ureq::post(&format!("{DSH_BASE}/api/host.describe"))
+    let response = ureq::post(&format!("{DSH_BASE}/api/{endpoint}"))
         // Match the host authority so the /api trust fence (Origin vs Host) passes.
         .set("Origin", DSH_ORIGIN)
         .timeout(Duration::from_secs(3))
         .send_json(body);
-    // ureq 2.x hands every 4xx/5xx back as Err(Error::Status(code, resp))
-    // — normalize to the plain status so the alive-verdict logic sees one
-    // shape. Without this the BrowserAuth 401 fell into `Err(_) => false`
-    // and the readiness loop never flipped on dsh 0.1.2+ (the shell then
-    // "就绪超时"-killed a perfectly healthy backend).
-    let (status, body) = match response {
-        Ok(r) => {
-            let status = r.status();
-            (status, if http_status_means_alive(status) { r.into_json::<Value>().ok() } else { None })
-        }
-        Err(ureq::Error::Status(status, r)) => (status, if http_status_means_alive(status) { r.into_json::<Value>().ok() } else { None }),
-        Err(_) => return false,
-    };
-    // BrowserAuth builds (issue #10, and dsh 0.1.2+'s cookie fence) answer
-    // every unauthenticated /api call with 401 — that refusal itself proves
-    // dsh owns the port, so the shell must not report "dsh not found".
+    match response {
+        Ok(r) => (r.status(), r.into_json::<Value>().ok()),
+        Err(ureq::Error::Status(status, r)) => (status, r.into_json::<Value>().ok()),
+        Err(_) => (0, None),
+    }
+}
+
+/// Whether one probe result proves a dsh web owns port 3080.
+/// 401: the `/api` fence of a BrowserAuth build (0.1.2+) — dsh is alive, we
+/// just lack credentials. 200 plus a `server-response` RPC envelope: dsh
+/// answered the gateway itself; `require_ok` additionally demands
+/// `result.ok == true` (the pre-0.1.2 contract on host.describe). Anything
+/// else — including 404 — proves nothing: 404 is NOT "a foreign service"
+/// on 0.1.2+ (it is that generation's normal answer for a deleted endpoint,
+/// issue #12), so the caller falls through to another endpoint instead.
+fn probe_result_alive(status: u16, body: Option<&Value>, require_ok: bool) -> bool {
     if status == 401 {
         return true;
     }
-    if !http_status_means_alive(status) {
+    if status != 200 {
         return false;
     }
-    // Ready ⇔ the four-quadrant RPC envelope returns result.ok == true
-    // (pre-0.1.2 dsh; 0.1.2+ never reaches here without credentials).
-    matches!(body.as_ref().and_then(|v| v.get("result")), Some(result) if result.get("ok") == Some(&json!(true)))
+    let Some(v) = body else { return false };
+    if v.get("type").and_then(|t| t.as_str()) != Some("server-response") {
+        return false;
+    }
+    !require_ok || v.get("result").and_then(|r| r.get("ok")) == Some(&json!(true))
+}
+
+/// Probe 3080 once; true if a dsh web of any supported generation answers.
+/// A plain TCP connect is not enough — an open port is not necessarily DSH.
+/// Endpoint ladder (issue #12):
+///   1. `host.describe` (dot-named, ≤0.1.1): 200+ok = healthy old dsh;
+///      401 = BrowserAuth fence (0.1.2+ answered before routing).
+///   2. `session/list` (slash-named, exists on every 0.1.2+ build): 401 =
+///      fence; 200 + server-response envelope = the typert gateway itself
+///      (an empty-payload probe yields `ok:false`/`arguments-invalid` — still
+///      a dsh-shaped answer, so only the envelope is required).
+/// Both miss ⇒ not a dsh we know (foreign service or nothing listening).
+pub(crate) fn probe_ready_once() -> bool {
+    let (status, body) = rpc_probe("host.describe");
+    if probe_result_alive(status, body.as_ref(), true) {
+        return true;
+    }
+    if status == 404 {
+        // host.describe was deleted in the 0.1.2 unary-apiproxy→remote
+        // migration; some builds route-404 before the auth fence can 401.
+        let (status2, body2) = rpc_probe("session/list");
+        return probe_result_alive(status2, body2.as_ref(), false);
+    }
+    false
 }
 
 /// Outcome of one candidate attempt.
@@ -2461,5 +2483,27 @@ mod tests {
     fn valid_utf8_still_wins() {
         assert_eq!(console_decode("ascii/path".as_bytes()), "ascii/path");
         assert_eq!(console_decode("héllo".as_bytes()), "héllo");
+    }
+
+    #[test]
+    fn probe_verdict_covers_every_supported_generation() {
+        let ok = json!({"type":"server-response","result":{"ok":true}});
+        // ≤0.1.1: host.describe 200 + ok envelope.
+        assert!(probe_result_alive(200, Some(&ok), true));
+        // 0.1.2+ BrowserAuth fence: 401 with no body at all.
+        assert!(probe_result_alive(401, None, true));
+        // 0.1.2 deleted host.describe: 404 proves nothing by itself.
+        assert!(!probe_result_alive(404, None, true));
+        // 0.1.2+ session/list with an empty probe payload: HTTP 200 with an
+        // arguments-invalid envelope — still the typert gateway answering.
+        let args_err = json!({"type":"server-response","result":{"ok":false,"error":{"code":"gateway/arguments-invalid"}}});
+        assert!(!probe_result_alive(200, Some(&args_err), true));
+        assert!(probe_result_alive(200, Some(&args_err), false));
+        // A random 200 JSON page is not an RPC envelope; no body is not either.
+        assert!(!probe_result_alive(200, Some(&json!({"hello":"world"})), false));
+        assert!(!probe_result_alive(200, None, false));
+        // Unreachable (0) and other statuses never count.
+        assert!(!probe_result_alive(0, None, false));
+        assert!(!probe_result_alive(502, None, false));
     }
 }
