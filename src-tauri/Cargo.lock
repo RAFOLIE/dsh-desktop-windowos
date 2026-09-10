@@ -831,7 +831,7 @@ dependencies = [
 
 [[package]]
 name = "dsh-desktop-windowos"
-version = "1.6.48"
+version = "1.6.49"
 dependencies = [
  "http",
  "serde",
@@ -846,6 +846,8 @@ dependencies = [
  "tungstenite",
  "ureq",
  "uuid",
+ "webview2-com",
+ "windows",
  "windows-sys 0.52.0",
  "winreg",
 ]

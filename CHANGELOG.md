@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.6.49 — 2026-09-10 【开发版/预发布】
+
+适配:**dsh web 0.1.2+ 新鉴权体系**(进程 launch token + SameSite=Strict 签名 Cookie;npm latest 现指向 0.1.5-rc.1),旧版 dsh(≤0.1.1-rc.2)行为逐字节保留。
+
+- **就绪探测 401 修复(根因)**:ureq 2.x 把 4xx/5xx 作为 `Err(Error::Status)` 返回,v1.6.47 的「401=存活」判断挂在 `Ok` 分支上从未生效——新版 dsh 下就绪探测永远失败,30 秒窗口到点后壳**误杀健康后端**(表现:web UI 闪现后"神秘死亡"、反复启动失败)。现统一归一化状态码后判定
+- **webchat 三档自适应鉴权**(新命令 `dsh_webchat_url`,ready 边沿先解析再挂 iframe):
+  ① GET `/` 200 → 旧版无鉴权,裸 URL(现行为不变);
+  ② 401 → 新版 BrowserAuth:子进程 stdout 捕获一次性 launch token(`dsh web: …/?token=…`)→ 壳侧完成 token↔Cookie 交换 → **WebView2 CookieManager 以 SameSite=None+Secure 注入**(壳页面 tauri.localhost 与 127.0.0.1:3080 跨站,Strict Cookie 在 iframe 中永不携带——实测钉死;None 注入后完整加载,实测截图验证);
+  ③ 无 token 且 yaml 无旧式字符串(attach 模式+凭证过期)→ 裸 URL + 顶部提示条(6 语言)引导托盘重启后端
+- Cookie 注入走 `with_webview` COM,30 天有效且签名密钥持久(跨后端重启有效);命令必须 async(spawn_blocking)——同步命令阻塞主线程会与 `with_webview` 自死锁
+- **monitor 降级**:新版事件流已从 WS `/api/events.host` 改为 `/api/remote.mux`(Typert mux,需 Cookie),未适配前握手 401 时记录一次日志并转入 60s 慢轮询(已知限制:**新版 dsh 下会话完成 toast 暂停**)
+- 兼容性实测:0.1.1-rc.2(升级前/回滚冒烟)与 0.1.5-rc.1 双向通过,历史会话目录结构未变(`~/.dsh/sessions/<工作区slug>`),工作区固定 `~/.dsh` 不变
+
+Compat: dsh web 0.1.2+ swaps the persistent yaml token for a per-process launch token + Strict signed cookie. The shell now resolves the iframe URL per ready edge (plain / token-exchange + WebView2 cookie plant / hint bar), fixes the readiness probe's 401 handling under ureq 2.x Err-semantics (which had the shell "timeout"-killing healthy new-version backends), and degrades the session-finished toasts gracefully until the new /api/remote.mux event API is adapted.
+
 ## v1.6.13 — 2026-08-27 【开发版/预发布】
 
 重构:「更新」标签页对标 Comfy Desktop 更新页的版式与交互。

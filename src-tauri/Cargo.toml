@@ -1,6 +1,6 @@
 [package]
 name = "dsh-desktop-windowos"
-version = "1.6.48"
+version = "1.6.49"
 description = "DeepSeek Harness desktop shell"
 authors = ["RAFOLIE"]
 edition = "2021"
@@ -48,6 +48,12 @@ tauri-winrt-notification = "0.7"
 # Console code-page decoding for captured child output (GBK paths, issue #4).
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.52", features = ["Win32_Globalization", "Win32_Foundation"] }
+# WebView2 CookieManager COM access for the BrowserAuth session-cookie plant
+# (dsh 0.1.2+): the shell page is tauri.localhost while the webchat iframe is
+# 127.0.0.1:3080, so the exchanged cookie must enter the jar as SameSite=None.
+# Pinned to the tree's existing webview2-com (tauri 2.11 → 0.38, windows 0.61).
+webview2-com = "0.38"
+windows = { version = "0.61", features = [] }
 
 [profile.release]
 # Size-first profile for a portable single-exe deliverable.

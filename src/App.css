@@ -43,6 +43,25 @@ body,
   background: #0f1115;
 }
 
+/* Thin explainer bar when the attached backend could not be authenticated
+   (v1.6.49): rides above the iframe, auto-clears on the next ready edge.
+   The iframe keeps its full-bleed inset — the bar overlays its top edge. */
+.auth-hint-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  padding: 6px 14px;
+  box-sizing: border-box;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #f5d38a;
+  background: rgba(64, 48, 12, 0.92);
+  border-bottom: 1px solid rgba(245, 211, 138, 0.35);
+  backdrop-filter: blur(6px);
+}
+
 .boot-wrap {
   position: absolute;
   inset: 0;
@@ -1265,6 +1284,12 @@ input:focus-visible {
   background: #ffffff;
   border: 1px solid #e6e6e8;
   box-shadow: 0 8px 32px rgba(16, 24, 40, 0.08);
+}
+
+[data-theme="light"] .auth-hint-bar {
+  color: #7a5b0f;
+  background: rgba(255, 244, 214, 0.95);
+  border-bottom: 1px solid rgba(180, 140, 40, 0.35);
 }
 
 [data-theme="light"] .text.error {

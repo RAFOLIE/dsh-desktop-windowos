@@ -22,6 +22,10 @@ export const zh = {
   "boot.opening": "正在打开…",
   "boot.newVersionReady": "新版本 v{version} 已就绪,应用即将自动重启生效",
 
+  // --- webchat auth hint (v1.6.49, BrowserAuth dsh attached without a usable cookie) ---
+  "auth.hint":
+    "此 dsh web 要求浏览器认证,但壳未获得它的访问令牌(外部启动且凭证已失效)。用托盘「重启 dsh web(后端)」让壳接管,即可自动完成认证",
+
   // --- notfound chooser ---
   "nf.title": "未找到本机 DSH",
   "nf.detail":
@@ -214,6 +218,9 @@ const en: Dict = {
   "boot.opening": "Opening…",
   "boot.newVersionReady": "New version v{version} is ready — the app restarts shortly",
 
+  "auth.hint":
+    "This dsh web requires browser authentication and the shell could not obtain its access token (started externally with expired credentials). Use tray \"Restart dsh web (backend)\" so the shell takes over and authenticates automatically",
+
   "nf.title": "No local DSH found",
   "nf.detail":
     "Searched PATH (where dsh, incl. npm global dsh/dsh.cmd), the app directory and the user directory — no DSH installation found. One-click install recommended:",
@@ -394,6 +401,10 @@ const zhHant: Dict = {
   "boot.newReadyRestarting": "新版本已就緒，自動重啟中…",
   "boot.opening": "正在開啟…",
   "boot.newVersionReady": "新版本 v{version} 已就緒，應用即將自動重啟生效",
+  "auth.hint":
+    "此 dsh web 要求瀏覽器認證，但殼未取得它的存取權杖（外部啟動且憑證已失效）。用系統匣「重啟 dsh web（後端）」讓殼接管，即可自動完成認證",
+
+
   "nf.title": "未找到本機 DSH",
   "nf.detail": "已搜尋 PATH（where dsh，含 npm 全域 dsh/dsh.cmd）、應用目錄與使用者目錄，均未發現 DSH 安裝。推薦一鍵安裝：",
   "nf.installFastest": "一鍵全域安裝並啟動（已選最快：{source} {ms}）",
@@ -557,6 +568,10 @@ const ja: Dict = {
   "boot.newReadyRestarting": "新バージョンの準備ができました。自動再起動中…",
   "boot.opening": "開いています…",
   "boot.newVersionReady": "新バージョン v{version} の準備ができました。まもなく自動再起動されます",
+  "auth.hint":
+    "この dsh web はブラウザー認証を要求しますが、シェルはアクセストークンを取得できませんでした（外部起動で資格情報が失効）。トレイの「dsh web（バックエンド）を再起動」でシェルに委任すると自動的に認証されます",
+
+
   "nf.title": "ローカルに DSH が見つかりません",
   "nf.detail": "PATH（where dsh、npm グローバルの dsh/dsh.cmd を含む）、アプリディレクトリ、ユーザーディレクトリを検索しましたが、DSH のインストールが見つかりません。ワンクリックインストールを推奨：",
   "nf.installFastest": "グローバルインストールして起動（最速：{source} {ms}）",
@@ -720,6 +735,10 @@ const ko: Dict = {
   "boot.newReadyRestarting": "새 버전 준비 완료, 자동 재시작 중…",
   "boot.opening": "여는 중…",
   "boot.newVersionReady": "새 버전 v{version} 준비 완료, 곧 자동 재시작됩니다",
+  "auth.hint":
+    "이 dsh web은 브라우저 인증을 요구하지만 셸이 접근 토큰을 가져오지 못했습니다(외부에서 시작되어 자격 증명 만료). 트레이의 「dsh web(백엔드) 재시작」으로 셸이 직접 관리하도록 하면 자동으로 인증됩니다",
+
+
   "nf.title": "로컬에서 DSH를 찾을 수 없음",
   "nf.detail": "PATH(where dsh, npm 전역 dsh/dsh.cmd 포함), 앱 디렉터리, 사용자 디렉터리를 검색했으나 DSH 설치를 찾지 못했습니다. 원클릭 설치 권장:",
   "nf.installFastest": "전역 설치 후 시작(가장 빠름: {source} {ms})",
@@ -883,6 +902,10 @@ const ru: Dict = {
   "boot.newReadyRestarting": "Новая версия готова, идёт автоматический перезапуск…",
   "boot.opening": "Открытие…",
   "boot.newVersionReady": "Новая версия v{version} готова — приложение вот-вот перезапустится",
+  "auth.hint":
+    "Этот dsh web требует браузерной аутентификации, но оболочке не удалось получить токен доступа (запущен извне, учётные данные истекли). Перезапустите dsh web (бэкенд) из трея — оболочка возьмёт его на себя и аутентифицируется автоматически",
+
+
   "nf.title": "Локальный DSH не найден",
   "nf.detail": "Выполнен поиск в PATH (where dsh, включая глобальные npm dsh/dsh.cmd), каталоге приложения и пользовательском каталоге — установка DSH не найдена. Рекомендуется установка в один клик:",
   "nf.installFastest": "Установить глобально и запустить (быстрейший: {source} {ms})",

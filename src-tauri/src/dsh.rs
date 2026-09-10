@@ -540,7 +540,10 @@ mod cwd_tests {
 
 #[cfg(test)]
 mod browser_session_tests {
-    use super::browser_session_token_from_yaml;
+    use super::{
+        browser_session_token_from_yaml, capture_launch_token, child_tail_clear,
+        parse_session_cookie, wait_launch_token, Duration,
+    };
 
     #[test]
     fn browserauth_yaml_yields_token() {
@@ -568,6 +571,41 @@ mod browser_session_tests {
     fn blank_or_short_token_yields_none() {
         assert!(browser_session_token_from_yaml("client-connection:\n  browser-session: \"   \"\n").is_none());
         assert!(browser_session_token_from_yaml("client-connection:\n  browser-session: short\n").is_none());
+    }
+
+    #[test]
+    fn exchange_setcookie_parses() {
+        // Shape captured live from dsh 0.1.5-rc.1's token exchange.
+        let header = "dsh-auth-t1vK1KKW=v1.eyJ2ZXJzaW9uIjoxLCJhdXRob3JpdHkiOiIxMjcuMC4wLjE6MzA4MCJ9.utc3ZWoBuhWzJbAdCNF412P2lqO; Max-Age=2592000; Path=/; Expires=Sat, 10 Oct 2026 06:38:19 GMT; HttpOnly; SameSite=Strict";
+        let cookie = parse_session_cookie(header).expect("valid exchange cookie");
+        assert_eq!(cookie.name, "dsh-auth-t1vK1KKW");
+        assert!(cookie.value.starts_with("v1."));
+        assert_eq!(cookie.max_age, 2_592_000);
+    }
+
+    #[test]
+    fn foreign_or_stunted_cookies_rejected() {
+        assert!(parse_session_cookie("sessionid=abc1234567890123456789; Path=/").is_none());
+        assert!(parse_session_cookie("dsh-auth-x=tooshort; Max-Age=1").is_none());
+        assert!(parse_session_cookie("not a header").is_none());
+    }
+
+    #[test]
+    fn launch_token_lifecycle() {
+        // One test body: LAUNCH_TOKEN is a process-global, so the extract /
+        // clear / ignore phases must run serially, not as parallel tests.
+        capture_launch_token(
+            "dsh web: http://127.0.0.1:3080/?token=TUnh16K7tUeypkLegjJvDqfr9B8SNm2SebqR58ldYao (LAN: http://192.168.1.5:3080/?token=other)",
+        );
+        assert_eq!(
+            wait_launch_token(Duration::from_millis(0)).as_deref(),
+            Some("TUnh16K7tUeypkLegjJvDqfr9B8SNm2SebqR58ldYao")
+        );
+        child_tail_clear();
+        assert_eq!(wait_launch_token(Duration::from_millis(0)), None);
+        // Non-announce lines (including look-alikes) must not re-arm it.
+        capture_launch_token("some unrelated dsh web output line");
+        assert_eq!(wait_launch_token(Duration::from_millis(0)), None);
     }
 }
 
@@ -663,26 +701,31 @@ pub(crate) fn probe_ready_once() -> bool {
         .set("Origin", DSH_ORIGIN)
         .timeout(Duration::from_secs(3))
         .send_json(body);
-    match response {
+    // ureq 2.x hands every 4xx/5xx back as Err(Error::Status(code, resp))
+    // — normalize to the plain status so the alive-verdict logic sees one
+    // shape. Without this the BrowserAuth 401 fell into `Err(_) => false`
+    // and the readiness loop never flipped on dsh 0.1.2+ (the shell then
+    // "就绪超时"-killed a perfectly healthy backend).
+    let (status, body) = match response {
         Ok(r) => {
             let status = r.status();
-            // BrowserAuth builds (issue #10) answer every unauthenticated
-            // /api call with 401 — that refusal itself proves dsh owns the
-            // port, so the shell must not report "dsh not found".
-            if status == 401 {
-                return true;
-            }
-            if !http_status_means_alive(status) {
-                return false;
-            }
-            match r.into_json::<Value>() {
-                // Ready ⇔ the four-quadrant RPC envelope returns result.ok == true.
-                Ok(v) => v.get("result").and_then(|x| x.get("ok")) == Some(&json!(true)),
-                Err(_) => false,
-            }
+            (status, if http_status_means_alive(status) { r.into_json::<Value>().ok() } else { None })
         }
-        Err(_) => false,
+        Err(ureq::Error::Status(status, r)) => (status, if http_status_means_alive(status) { r.into_json::<Value>().ok() } else { None }),
+        Err(_) => return false,
+    };
+    // BrowserAuth builds (issue #10, and dsh 0.1.2+'s cookie fence) answer
+    // every unauthenticated /api call with 401 — that refusal itself proves
+    // dsh owns the port, so the shell must not report "dsh not found".
+    if status == 401 {
+        return true;
     }
+    if !http_status_means_alive(status) {
+        return false;
+    }
+    // Ready ⇔ the four-quadrant RPC envelope returns result.ok == true
+    // (pre-0.1.2 dsh; 0.1.2+ never reaches here without credentials).
+    matches!(body.as_ref().and_then(|v| v.get("result")), Some(result) if result.get("ok") == Some(&json!(true)))
 }
 
 /// Outcome of one candidate attempt.
@@ -873,6 +916,54 @@ fn try_candidate(app: &AppHandle, candidate: &Candidate) -> Attempt {
 static CHILD_TAIL: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
 const CHILD_TAIL_CAP: usize = 60;
 
+/// Launch token printed once on the child's stdout by BrowserAuth-enabled
+/// dsh builds (0.1.2+): `dsh web: http://127.0.0.1:3080/?token=<base64url>`.
+/// Refreshed on every respawn (each process mints its own) and cleared with
+/// the tail when we stop owning that child. Attach mode has no stdout to
+/// watch — the webchat then leans on the still-valid planted cookie (its
+/// signing secret in ~/.dsh/.credentials.yaml is persistent).
+static LAUNCH_TOKEN: Mutex<Option<String>> = Mutex::new(None);
+
+/// Prefix of the announce line; the token is the base64url run that follows.
+/// Matched by `find` (not strip_prefix) so console noise around the line or
+/// the LAN-hint suffix cannot hide it.
+const TOKEN_ANNOUNCE: &str = "dsh web: http://127.0.0.1:3080/?token=";
+
+/// Pull the launch token out of one stdout/stderr line, if it is the announce.
+fn capture_launch_token(line: &str) {
+    let Some(pos) = line.find(TOKEN_ANNOUNCE) else {
+        return;
+    };
+    let rest = &line[pos + TOKEN_ANNOUNCE.len()..];
+    let token: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
+        .collect();
+    if token.len() >= 20 {
+        if let Ok(mut slot) = LAUNCH_TOKEN.lock() {
+            *slot = Some(token);
+        }
+        supervision_log("BrowserAuth launch token captured from dsh web output");
+    }
+}
+
+/// The captured token, waiting briefly when the ready probe raced ahead of
+/// the announce line (both land within a second or two of the port binding).
+fn wait_launch_token(timeout: Duration) -> Option<String> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Ok(slot) = LAUNCH_TOKEN.lock() {
+            if let Some(token) = slot.clone() {
+                return Some(token);
+            }
+        }
+        if Instant::now() >= deadline {
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
 fn child_tail_push(line: String) {
     if let Ok(mut tail) = CHILD_TAIL.lock() {
         if tail.len() >= CHILD_TAIL_CAP {
@@ -893,6 +984,9 @@ pub(crate) fn child_tail_last(n: usize) -> Vec<String> {
 fn child_tail_clear() {
     if let Ok(mut tail) = CHILD_TAIL.lock() {
         tail.clear();
+    }
+    if let Ok(mut slot) = LAUNCH_TOKEN.lock() {
+        *slot = None;
     }
 }
 
@@ -924,12 +1018,16 @@ pub(crate) fn child_tail_digest(max_lines: usize) -> String {
 }
 
 /// Keep the tail ring fed; runs on its own thread per stream and ends at
-/// EOF when the child dies.
+/// EOF when the child dies. Every line also passes the launch-token sniffer
+/// (the announce rides this same stdout).
 fn pump_tail<R: std::io::Read>(stream: R) {
     use std::io::BufRead;
     for line in std::io::BufReader::new(stream).lines() {
         match line {
-            Ok(l) => child_tail_push(l),
+            Ok(l) => {
+                capture_launch_token(&l);
+                child_tail_push(l);
+            }
             Err(_) => break,
         }
     }
@@ -1540,6 +1638,7 @@ pub fn env_info(app: &AppHandle) -> Value {
 /// (a DSH crash, or dshmarket's self-restart killing the host for an update).
 /// Expected exits (teardown / tray restart) set INTENTIONAL_STOP first.
 fn supervise_child(app: AppHandle, mut child: Child, pid: u32, spawned_at: Instant) {
+    supervision_log(&format!("supervisor armed for dsh web pid {pid}"));
     loop {
         match child.try_wait() {
             Ok(Some(_)) => break,
@@ -1550,6 +1649,7 @@ fn supervise_child(app: AppHandle, mut child: Child, pid: u32, spawned_at: Insta
     }
     let _ = child.wait(); // reap
     if INTENTIONAL_STOP.load(std::sync::atomic::Ordering::Relaxed) {
+        supervision_log(&format!("supervised dsh web (pid {pid}) stopped intentionally"));
         return;
     }
     supervision_log(&format!("supervised dsh web (pid {pid}) exited unexpectedly; healing"));
@@ -2066,6 +2166,237 @@ pub(crate) fn browser_session_token() -> Option<String> {
     let path = credentials_yaml_path()?;
     let text = std::fs::read_to_string(path).ok()?;
     browser_session_token_from_yaml(&text)
+}
+
+// --- webchat URL resolution: adapt to the dsh version's auth model (v1.6.49)
+//
+// dsh 0.1.2+ replaced the persistent yaml token with a per-process launch
+// token (stdout-announced once) plus a signed browser cookie (HttpOnly,
+// SameSite=Strict, 30 days, minted by GET /?token=<launch>). The shell page
+// itself is tauri.localhost while the webchat iframe is 127.0.0.1:3080 — a
+// cross-site embedding — so the Strict cookie is NEVER attached inside the
+// iframe (verified live: the plain ?token= iframe lands on the 401 page).
+// The working path: Rust performs the exchange itself, then plants the very
+// same cookie into WebView2's jar as SameSite=None+Secure (127.0.0.1 is a
+// trustworthy origin; the server only verifies the signed value, never the
+// SameSite attribute). The iframe then loads the plain URL carrying it.
+
+/// A `dsh-auth-…` browser-session cookie minted by the token exchange.
+struct SessionCookie {
+    name: String,
+    value: String,
+    max_age: u64,
+}
+
+/// Parse the exchange redirect's `Set-Cookie` header
+/// (`dsh-auth-…=v1.…; Max-Age=2592000; Path=/; …`). Only `dsh-auth-` names
+/// ever pass — a foreign 303 must not plant anything in the webview jar.
+fn parse_session_cookie(header: &str) -> Option<SessionCookie> {
+    let (pair, attrs) = header.split_once(';')?;
+    let (name, value) = pair.split_once('=')?;
+    let name = name.trim();
+    let value = value.trim();
+    if !name.starts_with("dsh-auth-") || value.len() < 24 {
+        return None;
+    }
+    let mut max_age = 30 * 24 * 3600;
+    for attr in attrs.split(';') {
+        if let Some(v) = attr.trim().strip_prefix("Max-Age=") {
+            if let Ok(secs) = v.trim().parse::<u64>() {
+                max_age = secs;
+            }
+        }
+    }
+    Some(SessionCookie {
+        name: name.to_string(),
+        value: value.to_string(),
+        max_age,
+    })
+}
+
+/// Marker noting which planted cookie should still be sitting in the WebView2
+/// jar. Purely advisory (the jar is the real state and HttpOnly cookies can't
+/// be re-read without COM ceremony) — it decides whether an auth-less attach
+/// mode deserves the "cannot authenticate this backend" hint.
+fn planted_cookie_marker_path() -> std::path::PathBuf {
+    log_path()
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("webauth-cookie.marker")
+}
+
+/// Remember the planted cookie's expiry; any write failure is ignored (the
+/// marker only gates a UI hint, never a functional path).
+fn mark_planted_cookie(expires_at_unix: u64) {
+    let _ = std::fs::write(planted_cookie_marker_path(), expires_at_unix.to_string());
+}
+
+/// Whether a cookie we planted should still be alive in the jar.
+fn planted_cookie_alive() -> bool {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    std::fs::read_to_string(planted_cookie_marker_path())
+        .ok()
+        .and_then(|text| text.trim().parse::<u64>().ok())
+        .is_some_and(|expires| expires > now)
+}
+
+/// One redirect-refusing GET. ureq 2.x hands 4xx/5xx back as
+/// Err(Error::Status(code, response)); normalize to (status, response) with
+/// 0 = unreachable/timeout so callers treat it as "let the iframe show it".
+fn http_get_no_redirect(url: &str) -> (u16, Option<ureq::Response>) {
+    let agent = ureq::AgentBuilder::new().redirects(0).build();
+    match agent.get(url).timeout(Duration::from_secs(3)).call() {
+        Ok(resp) => (resp.status(), Some(resp)),
+        Err(ureq::Error::Status(code, resp)) => (code, Some(resp)),
+        Err(_) => (0, None),
+    }
+}
+
+/// Plant the exchanged cookie in WebView2's jar as SameSite=None + Secure so
+/// the cross-site iframe carries it (the server never checks the SameSite
+/// attribute — only the signature and expiry inside the value). Runs the COM
+/// sequence on the main thread via with_webview and waits for its verdict.
+fn inject_webview2_cookie(app: &AppHandle, cookie: &SessionCookie) -> bool {
+    let Some(webview_window) = app.get_webview_window("main") else {
+        supervision_warn("webchat auth: main webview missing; cookie not planted");
+        return false;
+    };
+    let name = cookie.name.clone();
+    let value = cookie.value.clone();
+    let max_age = cookie.max_age;
+    let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
+    let dispatched = webview_window.with_webview(move |webview| {
+        let verdict = (|| -> Result<(), String> {
+            #[cfg(windows)]
+            unsafe {
+                use webview2_com::Microsoft::Web::WebView2::Win32::{
+                    ICoreWebView2_2, COREWEBVIEW2_COOKIE_SAME_SITE_KIND_NONE,
+                };
+                use windows::core::{Interface, HSTRING};
+                let core = webview
+                    .controller()
+                    .CoreWebView2()
+                    .map_err(|e| format!("CoreWebView2: {e}"))?;
+                let core2: ICoreWebView2_2 = core.cast().map_err(|e| format!("cast ICoreWebView2_2: {e}"))?;
+                let manager = core2
+                    .CookieManager()
+                    .map_err(|e| format!("CookieManager: {e}"))?;
+                let jar_cookie = manager
+                    .CreateCookie(
+                        &HSTRING::from(name.as_str()),
+                        &HSTRING::from(value.as_str()),
+                        &HSTRING::from("127.0.0.1"),
+                        &HSTRING::from("/"),
+                    )
+                    .map_err(|e| format!("CreateCookie: {e}"))?;
+                // SameSite=None is the whole point: Strict (as issued) would
+                // never attach inside the cross-site iframe. Secure rides
+                // along so None stays valid; loopback is a trustworthy origin.
+                let _ = jar_cookie.SetIsHttpOnly(true);
+                let _ = jar_cookie.SetIsSecure(true);
+                let _ = jar_cookie.SetSameSite(COREWEBVIEW2_COOKIE_SAME_SITE_KIND_NONE);
+                let expires = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs().saturating_add(max_age))
+                    .unwrap_or(0) as f64;
+                let _ = jar_cookie.SetExpires(expires);
+                manager
+                    .AddOrUpdateCookie(&jar_cookie)
+                    .map_err(|e| format!("AddOrUpdateCookie: {e}"))?;
+                mark_planted_cookie(expires as u64);
+                Ok(())
+            }
+            #[cfg(not(windows))]
+            {
+                let _ = (name, value, max_age);
+                Err("cookie plant is Windows-only".to_string())
+            }
+        })();
+        let _ = tx.send(verdict);
+    });
+    if let Err(e) = dispatched {
+        supervision_warn(&format!("webchat auth: cookie plant dispatch failed: {e}"));
+        return false;
+    }
+    match rx.recv_timeout(Duration::from_secs(3)) {
+        Ok(Ok(())) => true,
+        Ok(Err(e)) => {
+            supervision_warn(&format!("webchat auth: cookie plant failed: {e}"));
+            false
+        }
+        Err(_) => {
+            supervision_warn("webchat auth: cookie plant timed out");
+            false
+        }
+    }
+}
+
+/// Resolve the webchat iframe URL for the current backend (frontend invokes
+/// this on every ready edge and only mounts/reloads the iframe afterwards):
+///
+///   1. GET `/` answers 200 → pre-0.1.2 dsh, no auth — plain URL (today's
+///      behavior byte-for-byte).
+///   2. 401 → BrowserAuth build:
+///      a. captured process token (spawn mode) → exchange GET `/?token=` →
+///         303 Set-Cookie → plant into WebView2 → plain URL;
+///      b. no token but the legacy persistent yaml token (interim builds)
+///         → URL carries `?token=` (those builds accept it per request);
+///      c. neither → plain URL plus a `webchat-auth-hint` event so the shell
+///         can explain the dead iframe (attached instance, expired cookie).
+///
+/// Bounded (~10s worst case); every failure degrades to the plain URL and
+/// never blocks the boot.
+pub fn webchat_auth_flow(app: &AppHandle) -> String {
+    let plain = format!("{DSH_ORIGIN}/");
+    let (status, _) = http_get_no_redirect(&plain);
+    supervision_log(&format!("webchat auth: index probe answered HTTP {status}"));
+    match status {
+        200 | 0 => return plain,
+        401 => {}
+        other => {
+            supervision_warn(&format!("webchat auth: index answered HTTP {other}; using plain URL"));
+            return plain;
+        }
+    }
+    supervision_log("webchat auth: browser authentication required; resolving a token");
+    if let Some(token) = wait_launch_token(Duration::from_secs(6)) {
+        supervision_log("webchat auth: exchanging the captured launch token");
+        let exchange_url = format!("{DSH_BASE}/?token={token}");
+        let (status, response) = http_get_no_redirect(&exchange_url);
+        if status == 303 {
+            let header = response
+                .as_ref()
+                .and_then(|resp| resp.header("set-cookie"));
+            let planted = header
+                .and_then(parse_session_cookie)
+                .is_some_and(|cookie| inject_webview2_cookie(app, &cookie));
+            if planted {
+                supervision_log("webchat auth: launch token exchanged, session cookie planted");
+                return plain;
+            }
+            supervision_warn("webchat auth: token accepted but the cookie plant failed; iframe may 401");
+            return plain;
+        }
+        if status == 200 {
+            // Interim BrowserAuth build serving the index directly on ?token=.
+            supervision_log("webchat auth: index served on the token URL (interim build)");
+            return exchange_url;
+        }
+        supervision_warn(&format!("webchat auth: token exchange answered HTTP {status}"));
+    } else {
+        supervision_log("webchat auth: no launch token available (attached backend or pre-announce race)");
+    }
+    if let Some(token) = browser_session_token() {
+        supervision_log("webchat auth: falling back to the persistent yaml token");
+        return format!("{DSH_BASE}/?token={token}");
+    }
+    if !planted_cookie_alive() {
+        let _ = app.emit("webchat-auth-hint", ());
+    }
+    plain
 }
 
 /// Roll back the global dsh install to the last known-good version

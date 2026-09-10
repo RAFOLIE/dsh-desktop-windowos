@@ -27,19 +27,41 @@ const DSH_BASE: &str = "http://127.0.0.1:3080";
 pub fn run(app: AppHandle) {
     let baseline: Mutex<HashMap<String, Option<bool>>> = Mutex::new(HashMap::new());
     let mut attempt: u32 = 0;
+    // dsh 0.1.2+ requires browser auth on every /api request; the old
+    // events.host stream is gone (the new /api/remote.mux protocol is not
+    // adapted yet). A 401 handshake flips us into a slow idle poll instead
+    // of a hot reconnect loop — toasts stay paused until the adaptation.
+    let mut auth_silenced = false;
     loop {
         attempt = attempt.saturating_add(1);
         match connect_and_listen(&app, &baseline) {
             Ok(()) => {
                 // Orderly close — reset and reconnect fresh.
                 attempt = 0;
+                auth_silenced = false;
                 baseline.lock().unwrap().clear();
             }
-            Err(_) => {
+            Err(err) => {
                 // DSH gone (or not up yet) — drop the baseline so the next first
                 // wave rebuilds it without mis-firing an edge.
                 baseline.lock().unwrap().clear();
+                let unauthorized = err
+                    .downcast_ref::<tungstenite::Error>()
+                    .is_some_and(|e| {
+                        matches!(e, tungstenite::Error::Http(resp) if resp.status().as_u16() == 401)
+                    });
+                if unauthorized && !auth_silenced {
+                    auth_silenced = true;
+                    crate::dsh::log_write(
+                        crate::dsh::LogLevel::Info,
+                        "monitor: dsh web requires browser auth (0.1.2+ event API changed); session toasts paused until it is adapted",
+                    );
+                }
             }
+        }
+        if auth_silenced {
+            thread::sleep(Duration::from_secs(60));
+            continue;
         }
         // Backoff: 0.5s, 1s, 2s, 4s, 8s, capped at 10s.
         let exp = (attempt - 1).min(4);

@@ -75,6 +75,9 @@ function App() {
   /** Bumped on every ready *transition* after the first mount — remounts the
    *  iframe so a restarted backend gets a fresh webchat instead of a dead page. */
   const [reloadKey, setReloadKey] = useState(0);
+  /** The backend could not be authenticated (attached new-dsh instance with
+   *  no usable cookie) — a thin explainer bar rides above the iframe. */
+  const [authHint, setAuthHint] = useState(false);
   const [overlay, setOverlay] = useState<Overlay>(null);
   /** Env facts, prefetched at startup (and re-fetched on ready transitions) so
    *  the panel opens with data already in hand — no per-open loading spin. */
@@ -96,6 +99,22 @@ function App() {
       .then(setEnvInfo)
       .catch((e: string) => setEnvError(String(e)))
       .finally(() => setRefreshing(false));
+  }, []);
+
+  /// Final webchat URL for the freshly-ready backend (v1.6.49): the Rust side
+  /// adapts to the dsh version's auth model — plain URL (pre-0.1.2), token
+  /// exchange + WebView2 cookie plant (0.1.2+ BrowserAuth), or `?token=` URL
+  /// (interim builds). The 12s race cap means a wedged resolver degrades to
+  /// the plain URL instead of holding the iframe hostage.
+  const resolveWebchatUrl = useCallback(async (): Promise<string> => {
+    try {
+      return await Promise.race([
+        invoke<string>("dsh_webchat_url"),
+        new Promise<string>((resolve) => setTimeout(() => resolve(WEBCHAT_URL), 12_000)),
+      ]);
+    } catch {
+      return WEBCHAT_URL;
+    }
   }, []);
 
   // Prefetch once on mount.
@@ -156,30 +175,31 @@ function App() {
     let unlistenStatus: UnlistenFn | undefined;
     let unlistenUpdate: UnlistenFn | undefined;
     let unlistenShowEnv: UnlistenFn | undefined;
+    let unlistenAuthHint: UnlistenFn | undefined;
     let cancelled = false;
 
     (async () => {
-      unlistenStatus = await listen<DshStatus>("dsh-status", (event) => {
+      unlistenStatus = await listen<DshStatus>("dsh-status", async (event) => {
         setStatus(event.payload);
         if (event.payload.status === "ready") {
           if (!wasReady.current) {
             wasReady.current = true;
+            setAuthHint(false);
+            // Adapt to the backend's auth model BEFORE the iframe loads
+            // (v1.6.49): pre-0.1.2 dsh serves the plain URL, BrowserAuth
+            // builds (0.1.2+) need the Rust-side token exchange + WebView2
+            // cookie plant first — mounting early would land on their 401
+            // page. Resolved per ready edge so a restarted backend's fresh
+            // token is picked up; the race cap keeps a wedged resolver from
+            // ever holding the handoff.
+            const url = await resolveWebchatUrl();
+            setWebchatSrc(url);
             if (mountedRef.current) {
               setReloadKey((key) => key + 1);
             } else {
               mountedRef.current = true;
               setWebchatMounted(true);
             }
-            // BrowserAuth dsh (issue #10) needs the session token appended to
-            // the iframe URL; legacy dsh yields null → plain URL. Refreshed on
-            // every ready edge so a restarted backend's fresh token is picked up.
-            invoke<string | null>("dsh_browser_session_token")
-              .then((token) =>
-                setWebchatSrc(
-                  token ? `${WEBCHAT_URL}/?token=${encodeURIComponent(token)}` : WEBCHAT_URL,
-                ),
-              )
-              .catch(() => setWebchatSrc(WEBCHAT_URL));
             // The port owner / pid facts only mean something once DSH is up.
             refreshEnv();
           }
@@ -194,10 +214,17 @@ function App() {
       unlistenShowEnv = await listen("show-env", () => {
         setOverlay("env");
       });
+      // Rust could not authenticate the attached backend (no launch token,
+      // no valid planted cookie) — explain the dead iframe instead of
+      // leaving a bare 401 page. Cleared on the next ready edge.
+      unlistenAuthHint = await listen("webchat-auth-hint", () => {
+        setAuthHint(true);
+      });
       if (cancelled) {
         unlistenStatus();
         unlistenUpdate();
         unlistenShowEnv();
+        unlistenAuthHint();
       }
     })();
 
@@ -206,8 +233,9 @@ function App() {
       unlistenStatus?.();
       unlistenUpdate?.();
       unlistenShowEnv?.();
+      unlistenAuthHint?.();
     };
-  }, [refreshEnv]);
+  }, [refreshEnv, resolveWebchatUrl]);
 
   // Fuse: if the update events never arrive (very old build, IPC hiccup),
   // stop holding the handoff on `pending` — startup must never hang.
@@ -267,6 +295,9 @@ function App() {
       />
 
       <div className="content">
+        {authHint && (
+          <div className="auth-hint-bar" role="status">{t("auth.hint")}</div>
+        )}
         {webchatMounted && (
           <iframe
             key={reloadKey}

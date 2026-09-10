@@ -180,6 +180,22 @@ fn dsh_browser_session_token() -> Option<String> {
     dsh::browser_session_token()
 }
 
+/// Frontend-invoked on every ready edge (v1.6.49): the final webchat iframe
+/// URL for the current backend, adapting to its auth model — plain URL for
+/// pre-0.1.2 dsh, token-exchange + WebView2 cookie plant for 0.1.2+
+/// BrowserAuth, `?token=` URL for interim builds. The iframe must not mount
+/// before this resolves (it would land on the 401 page otherwise).
+///
+/// MUST stay async: the flow parks up to ~12s (token wait + bounded HTTP) and
+/// its cookie plant round-trips through the main thread (`with_webview`) — a
+/// sync command would block the main thread itself and deadlock the plant.
+#[tauri::command]
+async fn dsh_webchat_url(app: AppHandle) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || dsh::webchat_auth_flow(&app))
+        .await
+        .map_err(|e| format!("webchat auth resolver panicked: {e}"))
+}
+
 /// Frontend-invoked environment facts for the env panel.
 #[tauri::command]
 fn env_info(app: AppHandle) -> serde_json::Value {
@@ -592,7 +608,7 @@ pub fn run() {    tauri::Builder::default()
         }))
         .plugin(tauri_plugin_opener::init())
         .manage(dsh::DshState::new())
-        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, dsh_rollback_dsh, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
+        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, dsh_webchat_url, dsh_rollback_dsh, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
         .setup(|app| {
             // Session-start log rotation (ComfyUI-style) before anything logs
             // or spawns: previous session archived under a timestamped name.
