@@ -18,13 +18,13 @@ DeepSeek Harness(DSH)的 Windows 桌面壳,基于 **Tauri v2 + React 18 + TypeSc
 
 ### 更新通道(三段式发布)
 
-应用按三段式节奏发布,`releases/latest` **只包含稳定版**:
+应用按三段式节奏发布,`releases/latest` 即稳定通道:
 
 1. **开发期**:每个迭代版本发为 GitHub **预发布(开发版)**——自动更新不触碰(latest 天然排除),想尝鲜从 [Releases](https://github.com/RAFOLIE/dsh-desktop-windowos/releases) 手动下载
 2. **稳定性检查**:功能收敛后的检查版与修 bug 迭代**仍走预发布**
 3. **稳定版**:仅当作者确认稳定使用后才转正(latest),桌面端自动更新开闸——已装用户下次启动即升级
 
-桌面端自动更新默认只追稳定版(更新中心可切换到预发布通道或关闭自动更新);预发布主要供手动尝鲜与测试机验证。
+桌面端自动更新支持稳定与预发布两个通道(更新中心可切换或关闭自动更新):稳定通道为默认,预发布通道供尝鲜与测试机验证。
 
 ### 功能
 
@@ -65,7 +65,7 @@ DeepSeek Harness(DSH)的 Windows 桌面壳,基于 **Tauri v2 + React 18 + TypeSc
 |---|---|
 | Node.js | ^22.19 或 ≥ 24(**必须**;DSH 的 Node 版本要求) |
 | DSH | 可选,三种方式任一:全局安装 `npm i -g @deepseek-ai/dsh`(最快,推荐);本地安装(在 exe 旁或任意被搜索目录执行 `pnpm add @deepseek-ai/dsh`);都没有则首次启动时点「下载并启动」走 npx |
-| DSH 版本兼容 | 新旧两代自适应(**壳 ≥ v1.6.49**):≤0.1.1-rc.2(无鉴权)与 ≥0.1.2-alpha.1(进程 token + Cookie 浏览器鉴权、`/api` 端点斜杠化)均可直接用;旧壳(≤v1.6.48)配 ≥0.1.2 的 dsh 会出现就绪探测失效/内嵌页 401——升级壳或用其「回滚之前版本」按钮退回 dsh |
+| DSH 版本兼容 | **新旧两代均支持**(壳 ≥ v1.6.49):≤0.1.1-rc.2(无鉴权)与 ≥0.1.2-alpha.1(进程 token + Cookie 浏览器鉴权、`/api` 端点斜杠化,含 0.1.5-rc.1)开箱即用,升级前后历史对话均正常显示 |
 | 从源码跑 DSH 的开发者 | 设 `DSH_CMD`(`pnpm dsh web`)与 `DSH_CWD`(DSH 仓库路径)环境变量 |
 | WebView2 | Windows 11 自带 |
 
@@ -134,7 +134,7 @@ Ships as a **single portable bare exe** (~4.5 MB, no installer).
 
 ### Release channels (three-stage)
 
-`releases/latest` carries **stable builds only**:
+`releases/latest` is the stable channel:
 
 1. **Development**: every iteration ships as a GitHub **pre-release** — auto-update never touches it (latest excludes pre-releases); grab one manually from [Releases](https://github.com/RAFOLIE/dsh-desktop-windowos/releases) to try early builds
 2. **Stability checks**: post-convergence check builds and bugfix rounds stay on pre-release
@@ -172,6 +172,7 @@ Not bundled with the exe:
 |---|---|
 | Node.js | ^22.19 or ≥ 24 (**required**; the Node version DSH declares) |
 | DSH | optional, any of: global install `npm i -g @deepseek-ai/dsh` (fastest, recommended); local install (`pnpm add @deepseek-ai/dsh` beside the exe or in any searched dir); or click "下载并启动" on first launch to go through npx |
+| DSH version support | **both generations supported** (shell ≥ v1.6.49): ≤0.1.1-rc.2 (no auth) and ≥0.1.2-alpha.1 (per-process token + browser-cookie auth, slash-named `/api` endpoints, incl. 0.1.5-rc.1) work out of the box; conversation history displays correctly across the upgrade |
 | Running DSH from source | set the `DSH_CMD` (`pnpm dsh web`) and `DSH_CWD` (DSH repo path) env vars |
 | WebView2 | included with Windows 11 |
 
