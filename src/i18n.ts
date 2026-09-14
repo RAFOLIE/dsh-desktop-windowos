@@ -9,6 +9,21 @@ export type Locale = "zh" | "zh-Hant" | "en" | "ja" | "ko" | "ru";
  *  `Dict = Record<keyof typeof zh>` turns a missed translation into a compile
  *  error instead of leaked CJK. `{name}`-style tokens interpolate via t(). */
 export const zh = {
+  "panel.general": "常规",
+  "panel.back": "返回聊天",
+  "panel.search": "搜索设置…",
+  "panel.preferences": "偏好设置",
+  "panel.application": "应用管理",
+  "panel.results": "搜索结果",
+  "panel.searchHint": "选择结果，前往对应页面。",
+  "panel.noResults": "没有找到相关设置，请换个关键词。",
+  "panel.generalDesc": "让桌面应用按你的习惯运行。",
+  "panel.appearanceDesc": "调整配色、字体与界面细节。",
+  "panel.envDesc": "查看 DSH 的运行状态、组件与本地存储。",
+  "panel.updateDesc": "管理 DSH 内核与桌面应用的版本和更新通道。",
+  "panel.logDesc": "查看本次运行记录，定位与诊断问题。",
+  "panel.copyFailed": "复制失败，请重试",
+
   // --- shell boot views ---
   "boot.starting": "正在启动 DSH…",
   "boot.npxFirstRun": "首次运行需下载 DSH 包,可能需要几分钟,请耐心等待",
@@ -205,6 +220,21 @@ export type TKey = keyof typeof zh;
 type Dict = Record<TKey, string>;
 
 const en: Dict = {
+  "panel.general": "General",
+  "panel.back": "Back to chat",
+  "panel.search": "Search settings…",
+  "panel.preferences": "Preferences",
+  "panel.application": "Application",
+  "panel.results": "Search results",
+  "panel.searchHint": "Select a result to open its page.",
+  "panel.noResults": "No matching settings. Try another keyword.",
+  "panel.generalDesc": "Make the desktop app work your way.",
+  "panel.appearanceDesc": "Customize colors, typography and interface details.",
+  "panel.envDesc": "Inspect DSH status, components and local storage.",
+  "panel.updateDesc": "Manage versions and update channels for DSH and the desktop app.",
+  "panel.logDesc": "Review session logs to diagnose issues.",
+  "panel.copyFailed": "Could not copy. Please try again.",
+
   "boot.starting": "Starting DSH…",
   "boot.npxFirstRun":
     "First run downloads the DSH package — this can take a few minutes, please wait",
@@ -391,6 +421,21 @@ const en: Dict = {
 
 /** 繁體中文（zh-Hant）。 */
 const zhHant: Dict = {
+  "panel.general": "一般",
+  "panel.back": "返回聊天",
+  "panel.search": "搜尋設定…",
+  "panel.preferences": "偏好設定",
+  "panel.application": "應用程式管理",
+  "panel.results": "搜尋結果",
+  "panel.searchHint": "選擇結果，前往對應頁面。",
+  "panel.noResults": "找不到相關設定，請換個關鍵字。",
+  "panel.generalDesc": "讓桌面應用程式依照你的習慣運作。",
+  "panel.appearanceDesc": "調整色彩、字型與介面細節。",
+  "panel.envDesc": "查看 DSH 執行狀態、元件與本機儲存空間。",
+  "panel.updateDesc": "管理 DSH 核心與桌面應用程式的版本和更新通道。",
+  "panel.logDesc": "查看本次執行記錄，診斷問題。",
+  "panel.copyFailed": "複製失敗，請重試",
+
   "boot.starting": "正在啟動 DSH…",
   "boot.npxFirstRun": "首次執行需下載 DSH 套件，可能需要幾分鐘，請耐心等待",
   "boot.updateDownloading": "正在更新應用 v{version}…完成後自動進入",
@@ -558,6 +603,21 @@ const zhHant: Dict = {
 
 /** 日本語（ja）。 */
 const ja: Dict = {
+  "panel.general": "一般",
+  "panel.back": "チャットに戻る",
+  "panel.search": "設定を検索…",
+  "panel.preferences": "環境設定",
+  "panel.application": "アプリ管理",
+  "panel.results": "検索結果",
+  "panel.searchHint": "結果を選択して該当ページを開きます。",
+  "panel.noResults": "設定が見つかりません。別のキーワードをお試しください。",
+  "panel.generalDesc": "デスクトップアプリの動作を設定します。",
+  "panel.appearanceDesc": "配色、フォント、表示設定を調整します。",
+  "panel.envDesc": "DSH の状態、コンポーネント、保存先を確認します。",
+  "panel.updateDesc": "DSH とデスクトップアプリのバージョンと更新を管理します。",
+  "panel.logDesc": "実行ログを確認して問題を診断します。",
+  "panel.copyFailed": "コピーできませんでした。もう一度お試しください。",
+
   "boot.starting": "DSH を起動しています…",
   "boot.npxFirstRun": "初回起動時は DSH パッケージをダウンロードするため、数分かかることがあります。お待ちください",
   "boot.updateDownloading": "アプリを v{version} に更新中…完了後、自動的に切り替わります",
@@ -725,6 +785,21 @@ const ja: Dict = {
 
 /** 한국어（ko）。 */
 const ko: Dict = {
+  "panel.general": "일반",
+  "panel.back": "채팅으로 돌아가기",
+  "panel.search": "설정 검색…",
+  "panel.preferences": "환경 설정",
+  "panel.application": "앱 관리",
+  "panel.results": "검색 결과",
+  "panel.searchHint": "결과를 선택하여 해당 페이지를 엽니다.",
+  "panel.noResults": "일치하는 설정이 없습니다. 다른 검색어를 입력하세요.",
+  "panel.generalDesc": "데스크톱 앱의 동작을 설정합니다.",
+  "panel.appearanceDesc": "색상, 글꼴과 인터페이스를 설정합니다.",
+  "panel.envDesc": "DSH 상태, 구성 요소 및 로컬 저장소를 확인합니다.",
+  "panel.updateDesc": "DSH와 데스크톱 앱의 버전 및 업데이트 채널을 관리합니다.",
+  "panel.logDesc": "실행 로그를 확인하고 문제를 진단합니다.",
+  "panel.copyFailed": "복사하지 못했습니다. 다시 시도하세요.",
+
   "boot.starting": "DSH 시작 중…",
   "boot.npxFirstRun": "첫 실행 시 DSH 패키지를 다운로드하므로 몇 분 걸릴 수 있습니다. 기다려 주세요",
   "boot.updateDownloading": "앱을 v{version}(으)로 업데이트 중… 완료 후 자동 전환",
@@ -892,6 +967,21 @@ const ko: Dict = {
 
 /** Русский (ru). */
 const ru: Dict = {
+  "panel.general": "Общие",
+  "panel.back": "Назад к чату",
+  "panel.search": "Поиск настроек…",
+  "panel.preferences": "Настройки",
+  "panel.application": "Приложение",
+  "panel.results": "Результаты поиска",
+  "panel.searchHint": "Выберите результат, чтобы открыть страницу.",
+  "panel.noResults": "Настройки не найдены. Попробуйте другое слово.",
+  "panel.generalDesc": "Настройте поведение приложения под свои привычки.",
+  "panel.appearanceDesc": "Настройте цвета, шрифты и интерфейс.",
+  "panel.envDesc": "Состояние DSH, компоненты и локальное хранилище.",
+  "panel.updateDesc": "Управление версиями и каналами обновления DSH и приложения.",
+  "panel.logDesc": "Просмотр журнала для диагностики проблем.",
+  "panel.copyFailed": "Не удалось скопировать. Повторите попытку.",
+
   "boot.starting": "Запуск DSH…",
   "boot.npxFirstRun": "При первом запуске скачивается пакет DSH — это может занять несколько минут. Подождите",
   "boot.updateDownloading": "Обновление приложения до v{version}… после завершения вход выполнится автоматически",

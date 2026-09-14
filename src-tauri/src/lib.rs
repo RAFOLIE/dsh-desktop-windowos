@@ -2,6 +2,7 @@
 //! task-completion event monitor.
 
 mod dsh;
+mod backend_update;
 mod menu;
 mod monitor;
 mod update;
@@ -67,8 +68,8 @@ fn app_set_close_action(action: String) {
 /// Settings tab「外观」segment: persist the shell skin + the scheme handed
 /// to the webview on next launch.
 #[tauri::command]
-fn app_set_ui_theme(theme: String) {
-    dsh::set_ui_theme(&theme);
+fn app_set_ui_theme(theme: String) -> Result<(), String> {
+    dsh::set_ui_theme(&theme)
 }
 
 /// Settings tab「语言 / Language」segment: persist locale and rebuild the
@@ -232,8 +233,8 @@ fn app_full_restart(app: AppHandle) {
 
 /// 更新 tab: npm dist-tags (latest/next) for @deepseek-ai/dsh.
 #[tauri::command]
-fn dsh_npm_channels() -> serde_json::Value {
-    update::dsh_npm_channels().unwrap_or(serde_json::Value::Null)
+async fn dsh_npm_channels() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(|| update::dsh_npm_channels().ok_or_else(|| "Could not query npm channels".to_string())).await.map_err(|e| e.to_string())?
 }
 
 /// 更新 tab「检查应用更新」: same as the tray check — narrated with toasts.
@@ -276,35 +277,15 @@ fn app_set_update_config(channel: Option<String>, autoUpdate: Option<bool>) {
     );
 }
 
-/// 更新 tab「升级」: global dsh -> npm latest. High-impact: stops the
-/// backend around the install and lets supervision/startup re-run it.
 #[tauri::command]
-fn dsh_backend_upgrade(app: AppHandle, channel: Option<String>) -> Result<String, String> {
-    // Snapshot the current version so a rollback button can restore it if
-    // the new dsh is incompatible (issue #11 scenario).
-    dsh::save_previous_dsh_version();
-    dsh::stop_backend(&app);
-
-    // Run the upgrade in a background thread — `npm i -g` can take minutes
-    // and blocking the command handler causes the window to freeze.
-    let app_bg = app.clone();
-    let channel = channel.clone();
-    std::thread::spawn(move || {
-        match update::upgrade_backend(channel) {
-            Ok(stamp) => {
-                use tauri::Emitter;
-                let _ = app_bg.emit("dsh-upgrade-done", &stamp);
-            }
-            Err(e) => {
-                use tauri::Emitter;
-                let _ = app_bg.emit("dsh-upgrade-error", &e);
-            }
-        }
-        // Bring the backend back on the fresh version via the normal chain.
-        dsh::startup(app_bg.clone());
-    });
-
-    Ok("升级中…".to_string())
+async fn dsh_backend_source() -> Result<backend_update::Source, String> {
+    tauri::async_runtime::spawn_blocking(backend_update::source).await.map_err(|e| e.to_string())
+}
+#[tauri::command]
+fn dsh_backend_update_status() -> Option<backend_update::Job> { backend_update::status() }
+#[tauri::command]
+fn dsh_backend_upgrade(app: AppHandle, target: String, expected_path: String, expected_version: String, allow_downgrade: bool) -> Result<backend_update::Job, String> {
+    backend_update::start(app, target, expected_path, expected_version, allow_downgrade)
 }
 
 /// Roll back the global dsh to the version saved before the last upgrade.
@@ -312,6 +293,7 @@ fn dsh_backend_upgrade(app: AppHandle, channel: Option<String>) -> Result<String
 /// npm install (which can take minutes).
 #[tauri::command]
 fn dsh_rollback_dsh(app: AppHandle) -> Result<String, String> {
+    if backend_update::busy() { return Err("An update is already running".into()); }
     let app = app.clone();
     std::thread::spawn(move || {
         if let Err(e) = dsh::rollback_dsh_to_previous() {
@@ -608,7 +590,7 @@ pub fn run() {    tauri::Builder::default()
         }))
         .plugin(tauri_plugin_opener::init())
         .manage(dsh::DshState::new())
-        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, dsh_webchat_url, dsh_rollback_dsh, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
+        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_source, dsh_backend_update_status, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, dsh_webchat_url, dsh_rollback_dsh, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
         .setup(|app| {
             // Session-start log rotation (ComfyUI-style) before anything logs
             // or spawns: previous session archived under a timestamped name.

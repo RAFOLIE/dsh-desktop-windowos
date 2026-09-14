@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MorphIcon } from "morphicons/react";
+import { ArrowLeft, Settings2, Palette, Monitor, Download, ScrollText, Search, X, Copy, FolderOpen, RefreshCw, ChevronUp, ChevronDown, Ellipsis, type IconNode } from "lucide";
+import BackendUpdate from "./BackendUpdate";
+import { compare, valid } from "semver";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
-import { applySkin, type UiTheme } from "./theme";
-import { LANG_NATIVE, useI18n, type LocalePref, type T } from "./i18n";
+import Appearance from "./Appearance";
+import type { UiTheme } from "./theme";
+import { appearanceText } from "./appearanceI18n";
+import { LANG_NATIVE, zh, useI18n, type LocalePref, type T } from "./i18n";
 
 /** Rust-side env_info payload (all fields nullable — probes degrade). */
 export type EnvInfo = {
@@ -29,14 +35,19 @@ export type EnvInfo = {
 };
 
 /** Which detail tab is active. */
-type Tab = "env" | "log" | "update" | "settings";
+type Tab = "env" | "log" | "update" | "settings" | "appearance";
 
-const TABS: { id: Tab; labelKey: Parameters<T>["0"] }[] = [
-  { id: "env", labelKey: "tab.env" },
-  { id: "log", labelKey: "tab.log" },
-  { id: "update", labelKey: "tab.update" },
-  { id: "settings", labelKey: "tab.settings" },
+const TABS: { id: Tab; labelKey: Parameters<T>[0]; icon: IconNode; group: "preferences" | "application"; keywords: Parameters<T>[0][] }[] = [
+  { id: "settings", labelKey: "panel.general", icon: Settings2, group: "preferences", keywords: ["set.language", "set.alwaysOnTop", "set.alwaysOnTopDesc", "set.autostart", "set.autostartDesc", "set.closeAction", "set.closeActionHelp", "set.rememberTab", "set.rememberTabDesc"] },
+  { id: "appearance", labelKey: "set.groupAppearance", icon: Palette, group: "preferences", keywords: ["set.theme", "set.themeDesc", "set.themeSystem", "set.themeDark", "set.themeLight"] },
+  { id: "env", labelKey: "tab.env", icon: Monitor, group: "application", keywords: ["env.secRuntime", "env.secCore", "env.secVersions", "env.secStorage"] },
+  { id: "update", labelKey: "tab.update", icon: Download, group: "application", keywords: ["upd.autoUpdate", "upd.channelTitle", "upd.channelHelpApp", "upd.channelHelpBackend"] },
+  { id: "log", labelKey: "tab.log", icon: ScrollText, group: "application", keywords: ["log.copyAll", "log.pauseAuto", "log.clearDisplay"] },
 ];
+
+function PanelIcon({ icon, size = 19 }: { icon: IconNode; size?: number }) {
+  return <MorphIcon icon={icon} size={size} strokeWidth={1.7} reducedMotion="user" />;
+}
 
 const TAB_IDS: readonly string[] = TABS.map((t) => t.id);
 
@@ -58,79 +69,6 @@ function formatBytes(bytes: number | null | undefined, notDetected: string): str
 function Toast({ message }: { message: string | null }) {
   if (!message) return null;
   return <div className="ep-toast">{message}</div>;
-}
-
-/** Clickable "?" help badge: hover shows the native title tooltip, click
- *  toggles a persistent popover with the same text (fixed-position portal —
- *  immune to card overflow clipping, same pattern as ChannelPicker). */
-function HelpHint({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-  const ref = useRef<HTMLSpanElement>(null);
-
-  const toggle = () => {
-    setOpen((o) => {
-      if (!o && ref.current) {
-        const r = ref.current.getBoundingClientRect();
-        const center = r.left + r.width / 2;
-        setPos({
-          left: Math.min(Math.max(center, 170), window.innerWidth - 170),
-          top: r.bottom + 8,
-        });
-      }
-      return !o;
-    });
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    const close = () => setOpen(false);
-    const onDown = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!ref.current?.contains(target) && !target.closest(".ep-help-pop")) {
-        setOpen(false);
-      }
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", close, true);
-    return () => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", close, true);
-    };
-  }, [open]);
-
-  return (
-    <span ref={ref} className="ep-help-wrap">
-      <span
-        className={`ep-help${open ? " open" : ""}`}
-        role="button"
-        aria-label={text}
-        title={text}
-        onClick={(e) => {
-          e.stopPropagation();
-          toggle();
-        }}
-      >
-        ?
-      </span>
-      {open &&
-        pos !== null &&
-        createPortal(
-          <div
-            className="ep-help-pop"
-            style={{ position: "fixed", left: pos.left, top: pos.top }}
-          >
-            {text}
-          </div>,
-          document.body,
-        )}
-    </span>
-  );
 }
 
 /** 30px icon button (copy / open dir), weak by default, framed on hover. */
@@ -159,23 +97,8 @@ function IconButton({
   );
 }
 
-const CopyIcon = (
-  <svg viewBox="0 0 14 14" aria-hidden="true">
-    <rect x="4.5" y="4.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-    <path d="M9.5 2.5h-6a1 1 0 0 0-1 1v6" fill="none" stroke="currentColor" strokeWidth="1.2" />
-  </svg>
-);
-
-const FolderIcon = (
-  <svg viewBox="0 0 14 14" aria-hidden="true">
-    <path
-      d="M1.5 4a1 1 0 0 1 1-1h3l1.2 1.5H11.5a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1Z"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.2"
-    />
-  </svg>
-);
+const CopyIcon = <PanelIcon icon={Copy} size={16} />;
+const FolderIcon = <PanelIcon icon={FolderOpen} size={16} />;
 
 /** One field row inside a section card: name / value / action icons. */
 function FieldRow({
@@ -197,7 +120,7 @@ function FieldRow({
   return (
     <div className="ep-row">
       <div className="ep-row-label">{label}</div>
-      <div className={`ep-row-value${mono ? " mono" : ""}${absent ? " absent" : ""}`}>{shown}</div>
+      <div title={shown} className={`ep-row-value${mono ? " mono" : ""}${absent ? " absent" : ""}`}>{shown}</div>
       <div className="ep-row-actions">
         {!absent && (
           <IconButton label={t("common.copy")} onClick={() => onCopy(shown)}>
@@ -356,9 +279,6 @@ function LogViewer({ onCopy }: { onCopy: (text: string, note: string) => void })
   );
 }
 
-/** Channels payload from dsh_npm_channels. */
-type DshChannels = { latest?: string; next?: string | null; checkedAt?: string };
-
 /** "{n} 分钟前"-style relative stamp for the 上次检查 row. */
 function relativeStamp(stamp: string | undefined, t: T): string {
   if (!stamp) return "—";
@@ -372,17 +292,9 @@ function relativeStamp(stamp: string | undefined, t: T): string {
   return t("time.dayAgo", { n: Math.round(hours / 24) });
 }
 
-/** Loose numeric semver compare ("1.6.17" vs "v1.6.11") — enough for tags. */
 function verCmp(a: string, b: string): number {
-  const pa = a.replace(/^v/, "").split(/[.+\-]/).map((x) => parseInt(x, 10) || 0);
-  const pb = b.replace(/^v/, "").split(/[.+\-]/).map((x) => parseInt(x, 10) || 0);
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) - (pb[i] ?? 0);
-  }
-  return 0;
+  return valid(a) && valid(b) ? compare(a, b) : 0;
 }
-
-type Channel = "latest" | "next";
 
 export type ChannelOption = { id: string; title: string; desc: string; /** Hidden search aliases (e.g. English names). */ keywords?: string };
 
@@ -390,7 +302,7 @@ export type ChannelOption = { id: string; title: string; desc: string; /** Hidde
  *  trigger button + two-line options rendered via portal to body with fixed
  *  anchor — immune to panel scroll-container clipping. Scroll/resize/
  *  outside-click dismiss it; clicks inside don't. */
-function ChannelPicker({
+export function ChannelPicker({
   value,
   onChange,
   options,
@@ -476,6 +388,7 @@ function ChannelPicker({
     if (filtered.length > 0) {
       onChange(filtered[0].id);
       setOpen(false);
+      btnRef.current?.focus();
     }
   };
 
@@ -489,9 +402,13 @@ function ChannelPicker({
         aria-expanded={open}
         disabled={disabled}
         onClick={toggle}
+        onKeyDown={event => {
+          if (event.key === "Escape" && open) { event.preventDefault(); event.stopPropagation(); setOpen(false); }
+          if (event.key === "ArrowDown") { event.preventDefault(); if (!open) toggle(); else document.querySelector<HTMLButtonElement>(".ep-select-option")?.focus(); }
+        }}
       >
         {sel.title}
-        <svg width="12" height="12" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 3.5 5 7.5 9 3.5" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
+        <PanelIcon icon={open ? ChevronUp : ChevronDown} size={15} />
       </button>
       {!hideDesc && <div className="ep-select-desc-below">{sel.desc}</div>}
       {open &&
@@ -499,6 +416,15 @@ function ChannelPicker({
         createPortal(
           <div
             className="ep-select-menu"
+            onKeyDown={event => {
+              if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setOpen(false); btnRef.current?.focus(); }
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                const options = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>(".ep-select-option"));
+                const index = options.indexOf(document.activeElement as HTMLButtonElement);
+                options[(index + (event.key === "ArrowDown" ? 1 : options.length - 1) + options.length) % options.length]?.focus();
+              }
+            }}
             role="listbox"
             style={{
               position: "fixed",
@@ -521,7 +447,9 @@ function ChannelPicker({
                     pickFirst();
                   } else if (e.key === "Escape") {
                     e.preventDefault();
+                    e.stopPropagation();
                     setOpen(false);
+                    btnRef.current?.focus();
                   }
                 }}
               />
@@ -533,13 +461,13 @@ function ChannelPicker({
                 role="option"
                 aria-selected={value === o.id}
                 className={`ep-select-option${value === o.id ? " selected" : ""}`}
-                onClick={() => { onChange(o.id); setOpen(false); }}
+                onClick={() => { onChange(o.id); setOpen(false); btnRef.current?.focus(); }}
               >
                 <span className="ep-select-title">{o.title}</span>
                 <span className="ep-select-desc">{o.desc}</span>
                 {value === o.id && (
                   <svg className="ep-select-check" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-                    <path d="M2.5 7.5 6 11 11.5 4" fill="none" stroke="#4c9aff" strokeWidth="1.6" />
+                    <path d="M2.5 7.5 6 11 11.5 4" fill="none" stroke="var(--accent)" strokeWidth="1.6" />
                   </svg>
                 )}
               </button>
@@ -554,11 +482,6 @@ function ChannelPicker({
   );
 }
 
-const backendChannels = (t: T): ChannelOption[] => [
-  { id: "latest", title: t("upd.bchLatestTitle"), desc: t("upd.bchLatestDesc") },
-  { id: "next", title: t("upd.bchNextTitle"), desc: t("upd.bchNextDesc") },
-];
-
 const appChannels = (t: T): ChannelOption[] => [
   { id: "stable", title: t("upd.achStableTitle"), desc: t("upd.achStableDesc") },
   { id: "dev", title: t("upd.achDevTitle"), desc: t("upd.achDevDesc") },
@@ -568,37 +491,18 @@ const appChannels = (t: T): ChannelOption[] => [
  *  selector (stable/rc) with copy-and-update / update-now actions. */
 function UpdateTab({
   info,
-  backendVersion,
   onBackendUpgraded,
 }: {
   info: EnvInfo | null;
-  backendVersion: string;
   onBackendUpgraded: () => void;
 }) {
-  const [channels, setChannels] = useState<DshChannels | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [upgrading, setUpgrading] = useState(false);
   const [appRel, setAppRel] = useState<{ latest?: string; checkedAt?: string } | null>(null);
   const [appRelSrc, setAppRelSrc] = useState<"stable" | "dev">("stable");
   const [checkingApp, setCheckingApp] = useState(false);
   const [appUpdating, setAppUpdating] = useState(false);
   const [cfg, setCfg] = useState<{ channel: "stable" | "dev"; autoUpdate: boolean } | null>(null);
   const [savingCfg, setSavingCfg] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
-  const [channel, setChannel] = useState<Channel>("latest");
   const { t } = useI18n();
-
-  const check = useCallback(() => {
-    setChecking(true);
-    invoke<DshChannels>("dsh_npm_channels")
-      .then(setChannels)
-      .catch(() => {})
-      .finally(() => setChecking(false));
-  }, []);
-
-  useEffect(() => {
-    check();
-  }, [check]);
 
   const checkApp = useCallback((chan: "stable" | "dev") => {
     setCheckingApp(true);
@@ -641,79 +545,9 @@ function UpdateTab({
   };
 
 
-  const installed = backendVersion === "" ? null : backendVersion.replace(/^v/, "");
-  const hasUpdate = channels?.latest != null && installed != null && !installed.startsWith(channels.latest);
-  const target = channel === "latest" ? channels?.latest : channels?.next;
-  const installCmd = `npm i -g @deepseek-ai/dsh@${channel}`;
-
-
-
-  const upgrade = (alsoCopy: boolean) => {
-    const label = channel === "latest" ? t("upd.npmLatest") : t("upd.npmNext");
-    if (!window.confirm(t("upd.confirmUpgrade", { label }))) return;
-    if (alsoCopy) navigator.clipboard?.writeText(installCmd).catch(() => {});
-    setUpgrading(true);
-    setNote(null);
-    invoke<string>("dsh_backend_upgrade", { channel })
-      .then((stamp) => {
-        setNote(t("upd.doneNote", { stamp }));
-        check();
-        onBackendUpgraded();
-      })
-      .catch(() => setNote(t("upd.failNote")))
-      .finally(() => setUpgrading(false));
-  };
-
   return (
     <div className="ep-content-inner">
-      <section className="ep-group">
-        <div className="ep-version-heading">
-          {"DeepSeek Harness "}
-          {installed !== null && (
-            <span className="ep-version-num">{installed.startsWith("0.1") ? installed : `v${installed}`}</span>
-          )}
-          {hasUpdate && <span className="ep-badge warn">{t("upd.badgeHasUpdate")}</span>}
-        </div>
-        <div className="ep-card">
-          <div className="ep-row">
-            <div className="ep-row-label">{t("upd.installed")}</div>
-            <div className="ep-row-value mono">{installed ?? t("common.notDetected")}</div>
-            <div className="ep-row-actions" />
-          </div>
-          <div className="ep-row">
-            <div className="ep-row-label">{t("upd.latest")}</div>
-            <div className="ep-row-value mono link">{channels?.latest ?? t("common.checking")}</div>
-            <div className="ep-row-actions" />
-          </div>
-          <div className="ep-row">
-            <div className="ep-row-label">{t("upd.lastCheck")}</div>
-            <div className="ep-row-value">{relativeStamp(channels?.checkedAt, t)}</div>
-            <div className="ep-row-actions">
-              <button type="button" className="ep-tool-btn" disabled={checking} onClick={check}>
-                {checking ? t("common.checking") : t("upd.check")}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="ep-card ep-channel-card">
-          <div className="ep-channel-title">
-            {t("upd.channelTitle")}
-            <HelpHint text={t("upd.channelHelpBackend")} />
-          </div>
-          <ChannelPicker value={channel} onChange={(id) => setChannel(id as Channel)} options={backendChannels(t)} />
-          <div className="ep-upgrade-row">
-            <button type="button" className="ep-secondary" disabled={upgrading || target == null} onClick={() => upgrade(true)}>
-              {t("upd.copyAndUpdate")}
-            </button>
-            <button type="button" className="ep-primary" disabled={upgrading || target == null} onClick={() => upgrade(false)}>
-              {upgrading ? t("upd.nowUpdating") : t("upd.updateNow")}
-            </button>
-          </div>
-        </div>
-
-        {note !== null && <div className="detail">{note}</div>}
-      </section>
+      <BackendUpdate onChanged={onBackendUpgraded} />
 
       <section className="ep-group">
         <div className="ep-version-heading">
@@ -760,28 +594,28 @@ function UpdateTab({
             </div>
           </div>
         </div>
-        <div className="ep-card ep-channel-card">
+        <div className="ep-card ep-channel-card ep-update-choice">
           <div className="ep-channel-title">
             {t("upd.channelTitle")}
-            <HelpHint text={t("upd.channelHelpApp")} />
+            <span className="ep-row-description">{t("upd.channelHelpApp")}</span>
           </div>
           <ChannelPicker
             value={cfg?.channel ?? "stable"}
             onChange={(id) => saveCfg({ channel: id as "stable" | "dev" })}
             options={appChannels(t)}
-            disabled={savingCfg}
+            disabled={cfg === null || savingCfg}
           />
-          <div className="ep-upgrade-row">
-            <span className="ep-hint-inline">
+          <div className="ep-upgrade-row ep-auto-update-row">
+            <div className="ep-row-label">{t("upd.autoUpdate")}<span className="ep-row-description">
               {cfg?.autoUpdate === false ? t("upd.autoOff") : t("upd.autoOn")}
-            </span>
+            </span></div>
             <button
               type="button"
               className={`ep-switch${cfg?.autoUpdate ? " on" : ""}`}
               role="switch"
               aria-checked={cfg?.autoUpdate ?? true}
               aria-label={t("upd.autoUpdate")}
-              disabled={savingCfg}
+              disabled={cfg === null || savingCfg}
               onClick={() => saveCfg({ autoUpdate: !(cfg?.autoUpdate ?? true) })}
             />
           </div>
@@ -834,7 +668,7 @@ const closeActions = (t: T): ChannelOption[] => [
   { id: "exit", title: t("set.closeExit"), desc: t("set.closeExitDesc") },
 ];
 
-/** One boolean preference row: label(+? hover help) / 开关 (改动即时落盘). */
+/** Boolean preference: name and description on the left, switch on the right. */
 function PrefRow({
   label,
   help,
@@ -843,7 +677,7 @@ function PrefRow({
   onToggle,
 }: {
   label: string;
-  /** Hover hint rendered as a ? beside the label instead of visible text. */
+  /** Supporting text appears below the preference name. */
   help?: string;
   active: boolean;
   disabled?: boolean;
@@ -853,9 +687,7 @@ function PrefRow({
     <div className="ep-row">
       <div className="ep-row-label">
         {label}
-        {help && (
-          <HelpHint text={help} />
-        )}
+        {help && <span className="ep-row-description">{help}</span>}
       </div>
       <div className="ep-row-value" />
       <div className="ep-row-actions">
@@ -905,15 +737,6 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
   }, []);
 
   // 每个 saver 都在命令成功返回后才更新本地 state——写失败就不骗 UI。
-  const saveUiTheme = (pref: UiTheme) => {
-    invoke("app_set_ui_theme", { theme: pref })
-      .then(() => {
-        setCfg((c) => (c ? { ...c, uiTheme: pref } : c));
-        applySkin(pref);
-      })
-      .catch(() => {});
-  };
-
   const saveClose = (id: string) => {
     invoke("app_set_close_action", { action: id })
       .then(() => setCfg((c) => (c ? { ...c, closeAction: id === "exit" ? "exit" : "tray" } : c)))
@@ -946,38 +769,14 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
   };
 
   return (
-    <div className="ep-content-inner">
-      <section className="ep-group">
-        <div className="ep-group-title">{t("set.groupAppearance")}</div>
+    <div className="ep-content-inner ep-preferences">
+      {currentTab === "settings" && <section className="ep-group">
+        <div className="ep-group-title">{t("panel.general")}</div>
         <div className="ep-card">
           <div className="ep-row">
             <div className="ep-row-label">
-              {t("set.theme")}
-              <HelpHint text={t("set.themeDesc")} />
-            </div>
-            <div className="ep-row-value" />
-            <div className="ep-row-actions">
-              <div className="ep-seg" role="radiogroup" aria-label={t("set.theme")}>
-                {(["system", "dark", "light"] as const).map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    role="radio"
-                    aria-checked={cfg?.uiTheme === value}
-                    className={`ep-seg-btn${cfg?.uiTheme === value ? " active" : ""}`}
-                    disabled={cfg === null}
-                    onClick={() => saveUiTheme(value)}
-                  >
-                    {value === "system" ? t("set.themeSystem") : value === "dark" ? t("set.themeDark") : t("set.themeLight")}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="ep-row">
-            <div className="ep-row-label">
               {t("set.language")}
-              <HelpHint text={t("set.langSystemDesc", { name: LANG_NATIVE[locale] })} />
+              <span className="ep-row-description">{t("set.langSystemDesc", { name: LANG_NATIVE[locale] })}</span>
             </div>
             <div className="ep-row-value" />
             <div className="ep-row-actions">
@@ -1006,9 +805,9 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
             </div>
           </div>
         </div>
-      </section>
+      </section>}
 
-      <section className="ep-group">
+      {currentTab === "settings" && <><section className="ep-group">
         <div className="ep-group-title">{t("set.groupWindow")}</div>
         <div className="ep-card">
           <PrefRow
@@ -1025,18 +824,11 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
             disabled={cfg === null || busyAutostart}
             onToggle={saveAutostart}
           />
-        </div>
-        <div className="ep-card ep-channel-card">
-          <div className="ep-channel-title">
-            {t("set.closeAction")}
-            <HelpHint text={t("set.closeActionHelp")} />
+          <div className="ep-row">
+            <div className="ep-row-label">{t("set.closeAction")}<span className="ep-row-description">{t("set.closeActionHelp")}</span></div>
+            <div className="ep-row-value" />
+            <div className="ep-row-actions"><ChannelPicker value={cfg?.closeAction ?? "tray"} onChange={saveClose} options={closeActions(t)} disabled={cfg === null} hideDesc /></div>
           </div>
-          <ChannelPicker
-            value={cfg?.closeAction ?? "tray"}
-            onChange={saveClose}
-            options={closeActions(t)}
-            disabled={cfg === null}
-          />
         </div>
       </section>
 
@@ -1050,13 +842,12 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
             onToggle={saveRememberTab}
           />
         </div>
-      </section>
+      </section></>}
     </div>
   );
 }
 
-/** The environment panel: search bar / env+log tabs / grouped fact cards /
- *  bottom action bar. Only real data and real actions. */
+/** Full settings workspace; the underlying chat remains mounted. */
 export default function EnvPanel({
   initialTab,
   info,
@@ -1072,10 +863,9 @@ export default function EnvPanel({
   onRefresh: () => void;
   onClose: () => void;
 }) {
-  // 初始页签:通用入口(胶囊按钮/托盘环境信息, initialTab==="env")在开启
-  // "记住上次页签"时落在记忆页;显式入口(启动页查日志等)永远直落指定页。
+  // The capsule remembers the last page; explicit tray/log entries keep their destination.
   const loadInitialTab = (): Tab => {
-    if (initialTab === "env" && localStorage.getItem("epRememberTab") !== "0") {
+    if (initialTab === "settings" && localStorage.getItem("epRememberTab") !== "0") {
       const last = localStorage.getItem("epLastTab");
       if (last !== null && TAB_IDS.includes(last)) return last as Tab;
     }
@@ -1084,6 +874,8 @@ export default function EnvPanel({
   const [tab, setTabState] = useState<Tab>(loadInitialTab);
   const switchTab = (t: Tab) => {
     setTabState(t);
+    setMoreOpen(false);
+    setRestartMenuOpen(false);
     if (localStorage.getItem("epRememberTab") !== "0") localStorage.setItem("epLastTab", t);
   };
   const [query, setQuery] = useState("");
@@ -1091,50 +883,22 @@ export default function EnvPanel({
   const [restartMenuOpen, setRestartMenuOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
   const restartRef = useRef<HTMLDivElement>(null);
-
-  // --- resizable dialog width (persisted; clamped) ---
-  const MIN_W = 720;
-  const DEFAULT_W = MIN_W; // 默认开在最小宽度(720)
-  const maxW = () => Math.min(1440, window.innerWidth - 96);
-  const clampW = (w: number) => Math.max(MIN_W, Math.min(w, maxW()));
-  const loadW = (): number => {
-    const raw = Number(localStorage.getItem("epDialogWidth"));
-    return Number.isFinite(raw) && raw >= MIN_W ? clampW(raw) : DEFAULT_W;
-  };
-  const [dialogWidth, setDialogWidth] = useState<number>(loadW);
-  const saveW = (w: number) => { localStorage.setItem("epDialogWidth", String(Math.round(w))); };
-  const startResize = (edge: "left" | "right") => (event: React.PointerEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const startX = event.clientX;
-    const startW = dialogWidth;
-    const el = event.currentTarget;
-    el.setPointerCapture(event.pointerId);
-    document.body.style.userSelect = "none";
-    let last = startW;
-    const onMove = (e: PointerEvent) => {
-      const dx = e.clientX - startX;
-      last = clampW(edge === "right" ? startW + dx : startW - dx);
-      setDialogWidth(last);
-    };
-    const onUp = () => {
-      el.removeEventListener("pointermove", onMove);
-      el.removeEventListener("pointerup", onUp);
-      el.removeEventListener("pointercancel", onUp);
-      document.body.style.userSelect = "";
-      saveW(last); // 关键:松手即落盘,重开面板/重启应用都保持
-    };
-    el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerup", onUp);
-    el.addEventListener("pointercancel", onUp);
-  };
 
   // Esc closes; focus starts in the search box (spec: keyboard support).
   useEffect(() => {
     searchRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.defaultPrevented) return;
+      if (event.key === "Escape") { event.preventDefault(); onClose(); }
+      if (event.key === "Tab" && !document.querySelector(".ep-select-menu")) {
+        const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') ?? []).filter(el => el.getClientRects().length > 0);
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1143,7 +907,7 @@ export default function EnvPanel({
 
   // Dismiss the 更多 dropdown on outside clicks.
   useEffect(() => {
-    if (!moreOpen) return;
+    if (!moreOpen && !restartMenuOpen) return;
     const onClick = (event: MouseEvent) => {
       const inMore = moreRef.current?.contains(event.target as Node) ?? false;
       const inRestart = restartRef.current?.contains(event.target as Node) ?? false;
@@ -1152,7 +916,7 @@ export default function EnvPanel({
     };
     window.addEventListener("mousedown", onClick);
     return () => window.removeEventListener("mousedown", onClick);
-  }, [moreOpen]);
+  }, [moreOpen, restartMenuOpen]);
 
   useEffect(() => {
     if (!toast) return;
@@ -1160,11 +924,10 @@ export default function EnvPanel({
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const copy = useCallback(
     (text: string, note?: string) => {
-      navigator.clipboard?.writeText(text).catch(() => {});
-      setToast(note ?? t("common.copied"));
+      navigator.clipboard.writeText(text).then(() => setToast(note ?? t("common.copied"))).catch(() => setToast(t("panel.copyFailed")));
     },
     [t],
   );
@@ -1178,6 +941,22 @@ export default function EnvPanel({
     q === "" ||
     label.toLowerCase().includes(q) ||
     (value ?? "").toLowerCase().includes(q);
+
+  const searchResults = q ? TABS.flatMap(item => {
+    const keys = item.id === "env" ? (Object.keys(zh) as Parameters<T>[0][]).filter(key => key.startsWith("env.") && !key.includes("Hint") && !key.includes("Placeholder")) : item.keywords;
+    const candidates = [t(item.labelKey), ...keys.map(key => t(key))];
+    if (item.id === "appearance") candidates.push(...Object.values(appearanceText(locale)).filter(value => value.length < 45));
+    if (item.id === "env" && info) {
+      const facts: [string, string | null | undefined][] = [
+        [t("env.backendVersion"), info.dsh?.webVersion], ["Node.js", info.node?.version],
+        [t("env.profileDir"), info.profileDir], [t("env.workDir"), info.workspaceDir],
+        [t("env.logDir"), info.logDir], [t("env.customPath"), info.dsh?.customPath],
+        ["dsh-desktop-plugin", info.plugins?.dshDesktopPlugin],
+      ];
+      candidates.push(...facts.filter(([, value]) => value).map(([label, value]) => label + " · " + value));
+    }
+    return [...new Set(candidates)].filter(label => label.toLowerCase().includes(q)).slice(0, 8).map(label => ({ tab: item, label }));
+  }) : [];
 
   const exportBundle = () => {
     setMoreOpen(false);
@@ -1216,70 +995,35 @@ export default function EnvPanel({
       }}
     >
       <div
+        ref={dialogRef}
         className="ep-dialog"
         role="dialog"
         aria-modal="true"
         aria-label={t("panel.dialogAria")}
-        style={{ width: dialogWidth }}
-      >
-        {/* edge resize handles: drag to adjust width, double-click resets */}
-        <div
-          className="ep-resize-handle left"
-          title={t("env.resizingHint")}
-          onPointerDown={startResize("left")}
-          onDoubleClick={() => { setDialogWidth(DEFAULT_W); saveW(DEFAULT_W); }}
-        />
-        <div
-          className="ep-resize-handle right"
-          title={t("env.resizingHint")}
-          onPointerDown={startResize("right")}
-          onDoubleClick={() => { setDialogWidth(DEFAULT_W); saveW(DEFAULT_W); }}
-        />
-        {/* 1. Search bar */}
-        <div className="ep-search">
-          <svg className="ep-search-icon" viewBox="0 0 16 16" aria-hidden="true">
-            <circle cx="6.5" cy="6.5" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
-            <path d="M10 10 14 14" stroke="currentColor" strokeWidth="1.4" />
-          </svg>
-          <input
-            ref={searchRef}
-            value={query}
-            placeholder={t("env.searchPlaceholder")}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          {query !== "" ? (
-            <button type="button" className="ep-icon-btn" title={t("log.clearDisplay")} aria-label={t("log.clearDisplay")} onClick={() => setQuery("")}>
-              <svg viewBox="0 0 10 10" aria-hidden="true">
-                <path d="M0.8 0.8 9.2 9.2 M9.2 0.8 0.8 9.2" stroke="currentColor" strokeWidth="1.2" fill="none" />
-              </svg>
-            </button>
-          ) : (
-            <button type="button" className="ep-icon-btn" title={t("common.close")} aria-label={t("common.close")} onClick={onClose}>
-              <svg viewBox="0 0 10 10" aria-hidden="true">
-                <path d="M0.8 0.8 9.2 9.2 M9.2 0.8 0.8 9.2" stroke="currentColor" strokeWidth="1.2" fill="none" />
-              </svg>
-            </button>
-          )}
-        </div>
 
-        {/* Body: tabs + full-width content (single column) */}
+      >
+        <aside className="ep-sidebar">
+          <button type="button" className="ep-back" onClick={onClose}><PanelIcon icon={ArrowLeft} /><span>{t("panel.back")}</span></button>
+          <div className="ep-search">
+            <PanelIcon icon={Search} size={17} />
+            <input ref={searchRef} value={query} placeholder={t("panel.search")} aria-label={t("panel.search")} onChange={(event) => setQuery(event.target.value)} />
+            {query && <button type="button" className="ep-icon-btn" aria-label={t("log.clearDisplay")} onClick={() => setQuery("")}><PanelIcon icon={X} size={15} /></button>}
+          </div>
+          <nav className="ep-nav" aria-label={t("panel.dialogAria")}>
+            {(["preferences", "application"] as const).map(group => <div className="ep-nav-group" key={group}>
+              <div className="ep-nav-heading">{t(group === "preferences" ? "panel.preferences" : "panel.application")}</div>
+              {TABS.filter(item => item.group === group).map(item => <button key={item.id} type="button" className={'ep-tab' + (tab === item.id && !q ? ' active' : '')} aria-current={tab === item.id && !q ? "page" : undefined} onClick={() => { setQuery(""); switchTab(item.id); }}><PanelIcon icon={item.icon} /><span>{t(item.labelKey)}</span></button>)}
+            </div>)}
+          </nav>
+          <div className="ep-sidebar-brand"><PanelIcon icon={Monitor} size={17} /><div>DSH Desktop<span>v{info?.app?.version ?? "—"}</span></div></div>
+        </aside>
         <div className="ep-body">
           <div className="ep-detail">
-            <nav className="ep-nav">
-              {TABS.map((tabItem) => (
-                <button
-                  key={tabItem.id}
-                  type="button"
-                  className={`ep-tab${tab === tabItem.id ? " active" : ""}`}
-                  aria-current={tab === tabItem.id ? "page" : undefined}
-                  onClick={() => switchTab(tabItem.id)}
-                >
-                  {t(tabItem.labelKey)}
-                </button>
-              ))}
-            </nav>
+            <div className="ep-content" key={q ? "search" : tab}>
+              <header className="ep-page-heading"><h1>{q ? t("panel.results") : t(TABS.find(item => item.id === tab)!.labelKey)}</h1><p>{q ? t("panel.searchHint") : t(tab === "settings" ? "panel.generalDesc" : tab === "appearance" ? "panel.appearanceDesc" : tab === "env" ? "panel.envDesc" : tab === "update" ? "panel.updateDesc" : "panel.logDesc")}</p></header>
+              {q && <div className="ep-search-results">{searchResults.length ? searchResults.map((result, index) => <button className="ep-search-result" key={result.tab.id + index} onClick={() => { setQuery(""); switchTab(result.tab.id); }}><PanelIcon icon={result.tab.icon} /><span><strong>{result.label}</strong><small>{t(result.tab.labelKey)}</small></span><PanelIcon icon={ArrowLeft} size={16} /></button>) : <div className="ep-empty">{t("panel.noResults")}</div>}</div>}
+              {!q && <>
 
-            <div className="ep-content">
               {tab === "env" ? (
                 info === null && error === "" ? (
                   <div className="ep-loading">
@@ -1393,23 +1137,23 @@ export default function EnvPanel({
               {tab === "update" && (
                 <UpdateTab
                   info={info}
-                  backendVersion={dsh?.webVersion ?? ""}
                   onBackendUpgraded={onRefresh}
                 />
               )}
               {tab === "settings" && <SettingsTab currentTab={tab} />}
+              {tab === "appearance" && <Appearance />}
+              </> }
             </div>
           </div>
-        </div>
 
-        {/* 4. Bottom action bar (right-aligned actions only) */}
-        <div className="ep-bottom">
+        {/* Context actions belong to environment and logs. */}
+        {!q && (tab === "env" || tab === "log") && <div className="ep-bottom">
           <button type="button" className="ep-secondary" disabled={refreshing} onClick={onRefresh}>
-            {refreshing ? t("common.checking") : t("panel.refreshCheck")}
+            <PanelIcon icon={RefreshCw} size={16} />{refreshing ? t("common.checking") : t("panel.refreshCheck")}
           </button>
           <div className="ep-split" ref={restartRef}>
             <button type="button" className="ep-primary ep-split-main" onClick={restart}>
-              {t("panel.restartBackend")}
+              <PanelIcon icon={RefreshCw} size={16} />{t("panel.restartBackend")}
             </button>
             <button
               type="button"
@@ -1419,7 +1163,7 @@ export default function EnvPanel({
               title={t("panel.moreRestarts")}
               onClick={() => setRestartMenuOpen((o) => !o)}
             >
-              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 6.5 5 2.5 9 6.5" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
+              <PanelIcon icon={restartMenuOpen || moreOpen ? ChevronDown : ChevronUp} size={15} />
             </button>
             {restartMenuOpen && (
               <div className="ep-menu" role="menu">
@@ -1440,7 +1184,7 @@ export default function EnvPanel({
           <div className="ep-more" ref={moreRef}>
             <div className="ep-split">
               <button type="button" className="ep-secondary ep-split-main" onClick={() => setMoreOpen((o) => !o)}>
-                {t("panel.more")}
+                <PanelIcon icon={Ellipsis} size={17} />{t("panel.more")}
               </button>
               <button
                 type="button"
@@ -1449,7 +1193,7 @@ export default function EnvPanel({
                 aria-expanded={moreOpen}
                 onClick={() => setMoreOpen((o) => !o)}
               >
-                <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 6.5 5 2.5 9 6.5" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
+                <PanelIcon icon={restartMenuOpen || moreOpen ? ChevronDown : ChevronUp} size={15} />
               </button>
             </div>
               {moreOpen && (
@@ -1491,6 +1235,7 @@ export default function EnvPanel({
                 </div>
               )}
           </div>
+        </div>}
         </div>
 
         <Toast message={toast} />

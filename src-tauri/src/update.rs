@@ -245,6 +245,7 @@ fn download_with_curl(url: &str, dest: &Path, size: u64, digest: Option<&str>) -
 /// wedged plugin leaves even the webchat unusable. Only exits when the
 /// helper is armed, so a failed arm never turns a restart into a quit.
 pub fn restart_app(app: &AppHandle) {
+    if crate::backend_update::busy() { return; }
     if let Ok(exe) = tauri::utils::platform::current_exe() {
         if relaunch_app(&exe) {
             // Stop the backend unconditionally (owned tree AND any attached
@@ -652,7 +653,7 @@ pub fn dsh_npm_channels() -> Option<Value> {
     let doc = response.into_json::<Value>().ok()?;
     let latest = doc["dist-tags"]["latest"].as_str()?.to_string();
     let next = doc["dist-tags"]["next"].as_str().map(str::to_string);
-    Some(json!({ "latest": latest, "next": next, "checkedAt": now_stamp() }))
+    Some(json!({ "latest": latest, "next": next, "alpha": doc["dist-tags"]["alpha"], "checkedAt": now_stamp() }))
 }
 
 pub(crate) fn now_stamp() -> String {
@@ -660,28 +661,6 @@ pub(crate) fn now_stamp() -> String {
     format!("{date} {time}")
 }
 
-/// Upgrade the global dsh package via the same bounded, windowless runner
-/// used elsewhere. `channel` selects the npm dist-tag: "latest" (stable,
-/// recommended) or "next" (rc prerelease). The frontend stops/restarts the
-/// backend around this; afterwards we clear 3080 ourselves so a stale
-/// pre-upgrade server can't keep serving.
-pub fn upgrade_backend(channel: Option<String>) -> Result<String, String> {
-    let tag = match channel.as_deref() {
-        Some("next") => "next",
-        _ => "latest",
-    };
-    let npm = crate::dsh::where_first("npm")
-        .ok_or_else(|| "未找到 npm(需要已安装 Node.js)".to_string())?;
-    let cmd = format!("\"{}\" install -g @deepseek-ai/dsh@{}", npm, tag);
-    let ok = crate::dsh::run_bounded(&cmd, Duration::from_secs(600), "dsh backend upgrade");
-    if ok {
-        Ok(now_stamp())
-    } else {
-        Err(format!("升级到 {} 失败——详见日志标签页", tag))
-    }
-}
-
-/// 更新 tab: persisted shell update prefs.
 #[tauri::command]
 fn app_get_update_config() -> serde_json::Value {
     let (channel, auto) = crate::dsh::app_update_config();
@@ -745,6 +724,7 @@ pub fn spawn_check(app: AppHandle) {
 /// Tray-triggered on-demand check. Same flow as launch, but outcomes are
 /// narrated with toasts; guarded so repeated menu clicks run one check.
 pub fn check_now(app: AppHandle) {
+    if crate::backend_update::busy() { return; }
     if CHECK_IN_FLIGHT.swap(true, Ordering::SeqCst) {
         return;
     }

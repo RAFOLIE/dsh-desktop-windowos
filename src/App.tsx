@@ -17,6 +17,8 @@ import {
 } from "./i18n";
 import { applySkin, loadUiTheme, watchSystemSkin } from "./theme";
 import "./App.css";
+import "./Settings.css";
+import "./Appearance.css";
 
 /** Rust→frontend lifecycle payloads emitted on the `dsh-status` channel. */
 type DshStatus =
@@ -43,7 +45,7 @@ const REGISTRY_MIRROR = "https://registry.npmmirror.com";
 type NpmProbe = { npmjsMs: number | null; npmmirrorMs: number | null; fastest: string | null };
 
 /** Which tab of the environment-manager panel is open; null = closed. */
-type Overlay = null | "env" | "log";
+type Overlay = null | "env" | "log" | "settings";
 
 /** The persistent shell. The window is undecorated; the app's own title bar
  *  rides on top for the whole session. The webchat loads in a same-site
@@ -290,7 +292,7 @@ function App() {
         checkVisible={checkVisible}
         updateBusy={updateBusy}
         panelOpen={overlay !== null}
-        onTogglePanel={() => setOverlay((o) => (o === null ? "env" : null))}
+        onTogglePanel={() => setOverlay((o) => (o === null ? "settings" : null))}
         nameBtnRef={nameBtnRef}
       />
 
@@ -304,6 +306,8 @@ function App() {
             src={webchatSrc}
             className="webchat"
             title="DSH webchat"
+            tabIndex={overlay === null ? 0 : -1}
+            aria-hidden={overlay !== null}
             allow="clipboard-read; clipboard-write; fullscreen"
             style={{ display: chatVisible || overlay !== null ? "block" : "none" }}
           />

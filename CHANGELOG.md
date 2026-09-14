@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.6.51 — 2026-09-14 【稳定版】
+
+本版汇总 v1.6.50 之后的设置工作区、外观定制和内核更新逻辑改造。应用与 npm 插件继续独立版本线，插件保持 1.5.12。
+
+### 设置与外观
+
+- 胶囊入口打开 Codex 风格的左右布局，常规 / 外观 / 环境 / 更新 / 日志五个页面，支持图标、搜索、键盘操作和窄窗口。聊天 iframe 常驻，设置切换不会销毁聊天草稿。
+- 浅色、深色、跟随系统；浅深两套独立主题及预览，DSH / Codex 预设，自定义强调色、背景、文字与层次对比度。
+- 界面 / 代码字体和字号、手形光标、半透明侧栏；主题复制、校验导入与重置；配置即时保存。语言移入常规，保留系统模式及六种语言。
+
+### 内核更新修复
+
+- 使用完整 SemVer 比较运行版本与所选 npm 标签版本，例如 rc.2 对 rc.1 显示当前版本领先，不再误报升级。
+- latest / next / 高级 alpha 表示发布标签，latest 不保证是正式版本；缺失或失败的渠道查询不会替换为其他渠道。
+- 复制命令仅复制；降级需明确确认。一键更新只针对来源可核验、由应用托管的全局 npm 安装；其他来源提供对应说明。
+- 安装前复核路径和版本；只停止所拥有的后端进程。任务状态保存在 Rust 侧，切换页面后可恢复；成功需验证新进程、相同安装路径、目标版本及就绪状态。
+
+### 范围与验证
+
+- 自定义颜色和字体作用于桌面外壳；聊天明暗模式仍在重启后同步。半透明侧栏是应用内效果。导入使用 DSH theme v1 JSON，不与 Codex 主题字符串互通。
+- 8 项前端模型测试通过；浏览器模拟 Tauri 检查设置、更新及外观交互、六语言、窄窗口、持久化、错误处理和聊天草稿保留。Rust 15 项通过、1 项主机诊断按定义跳过；生产前端与 Tauri 构建通过。本轮验证未执行真实 DSH 安装或降级。
+- 继承的已知限制：新版 DSH 事件 API 下的会话完成通知仍待适配。
+
+### English
+
+This stable release replaces the capsule settings panel with a searchable, responsive two-column workspace. Appearance adds independent light/dark previews, presets, custom colors and surface contrast, UI/code fonts and sizes, pointer cursors, a translucent sidebar, and validated theme import/export/reset. Language moves to General; six locales and system mode remain available.
+
+Backend updates now compare full SemVer precedence with the selected npm dist-tag. An installed rc.2 is correctly recognized as ahead of rc.1. Copying commands never executes them; downgrades require confirmation. One-click updates are limited to verified, app-owned global npm installations and verify the replacement process, source path, target version and readiness before reporting success. Rust retains job state across page changes.
+
+Custom colors/fonts apply to the desktop shell, while chat light/dark mode follows after restart. DSH theme JSON is not interoperable with Codex theme strings. Validation includes eight frontend model tests, mocked browser interaction checks and fifteen Rust tests (one diagnostic ignored); no live DSH package installation/downgrade was performed for these checks. The existing new-DSH session-toast limitation remains. The npm plugin stays at 1.5.12.
+
 ## v1.6.50 — 2026-09-10 【开发版/预发布】issue #12
 
 加固:**就绪探测多端点阶梯**,覆盖 0.1.2 中间版本的「404 先于鉴权栅栏」行为。

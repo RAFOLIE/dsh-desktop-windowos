@@ -54,7 +54,7 @@ body,
   z-index: 30;
   padding: 6px 14px;
   box-sizing: border-box;
-  font-size: 12.5px;
+  font-size: calc(var(--ui-size, 14px) * 0.89286);
   line-height: 1.5;
   color: #f5d38a;
   background: rgba(64, 48, 12, 0.92);
@@ -84,7 +84,7 @@ body,
 }
 
 .text {
-  font-size: 15px;
+  font-size: calc(var(--ui-size, 14px) * 1.07143);
 }
 
 .text.error {
@@ -93,7 +93,7 @@ body,
 }
 
 .detail {
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   color: #9aa0a6;
   max-width: 320px;
   text-align: center;
@@ -102,7 +102,7 @@ body,
 
 button {
   padding: 8px 20px;
-  font-size: 14px;
+  font-size: calc(var(--ui-size, 14px) * 1.0);
   border: 1px solid #2c3140;
   border-radius: 8px;
   background: #1f6feb;
@@ -141,7 +141,7 @@ input:focus-visible {
   width: 100%;
   box-sizing: border-box;
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   border: 1px solid #2c3140;
   border-radius: 8px;
   background: #0f1115;
@@ -207,7 +207,7 @@ input:focus-visible {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: #e7eaf0;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   font-weight: 600;
   letter-spacing: 0.2px;
   cursor: pointer;
@@ -285,7 +285,7 @@ input:focus-visible {
 
 .boot-log-link {
   padding: 2px 6px;
-  font-size: 12px;
+  font-size: calc(var(--ui-size, 14px) * 0.85714);
   background: transparent;
   border: none;
   color: #8b949e;
@@ -400,7 +400,7 @@ input:focus-visible {
   border: none;
   background: transparent;
   color: #e7eaf0;
-  font-size: 18px;
+  font-size: calc(var(--ui-size, 14px) * 1.28571);
 }
 
 .ep-search input::placeholder {
@@ -424,7 +424,7 @@ input:focus-visible {
 .ep-pill {
   height: 32px;
   padding: 0 16px;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   border-radius: 999px;
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -445,7 +445,7 @@ input:focus-visible {
 .ep-pill-sm {
   height: 26px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: calc(var(--ui-size, 14px) * 0.85714);
 }
 
 .ep-pill-sm.active {
@@ -510,7 +510,7 @@ input:focus-visible {
   border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 50%;
   color: #8b949e;
-  font-size: 10px;
+  font-size: calc(var(--ui-size, 14px) * 0.71429);
   font-weight: 600;
   line-height: 1;
   cursor: help;
@@ -545,7 +545,7 @@ input:focus-visible {
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   color: #e7eaf0;
-  font-size: 12px;
+  font-size: calc(var(--ui-size, 14px) * 0.85714);
   font-weight: 400;
   line-height: 1.5;
   text-align: left;
@@ -558,7 +558,7 @@ input:focus-visible {
 .ep-tool-btn {
   height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   border-radius: 8px;
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -603,7 +603,7 @@ input:focus-visible {
 .ep-tab {
   height: 56px;
   padding: 0 16px;
-  font-size: 14px;
+  font-size: calc(var(--ui-size, 14px) * 1.0);
   border: none;
   border-bottom: 2px solid transparent;
   border-radius: 0;
@@ -660,7 +660,7 @@ input:focus-visible {
 }
 
 .ep-group-title {
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   font-weight: 600;
   color: #969dab;
   letter-spacing: 0.4px;
@@ -690,12 +690,12 @@ input:focus-visible {
 }
 
 .ep-row-label {
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   color: #969dab;
 }
 
 .ep-row-value {
-  font-size: 14px;
+  font-size: calc(var(--ui-size, 14px) * 1.0);
   color: #e7eaf0;
   overflow-wrap: anywhere;
   user-select: text;
@@ -703,7 +703,7 @@ input:focus-visible {
 
 .ep-row-value.mono {
   font-family: Consolas, "Cascadia Mono", monospace;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
 }
 
 .ep-row-value.absent {
@@ -748,7 +748,7 @@ input:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: calc(var(--ui-size, 14px) * 1.0);
 }
 
 .ep-status.ok {
@@ -766,7 +766,7 @@ input:focus-visible {
   gap: 14px;
   padding: 48px 0;
   color: #969dab;
-  font-size: 14px;
+  font-size: calc(var(--ui-size, 14px) * 1.0);
 }
 
 .ep-error {
@@ -779,7 +779,7 @@ input:focus-visible {
   border-radius: 10px;
   background: #ef5b6714;
   color: #ef5b67;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
 }
 
 /* Log tab */
@@ -812,7 +812,7 @@ input:focus-visible {
   border-radius: 8px;
   color: #9aa0a6;
   font-family: Consolas, "Cascadia Mono", monospace;
-  font-size: 12px;
+  font-size: calc(var(--ui-size, 14px) * 0.85714);
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-all;
@@ -851,7 +851,7 @@ input:focus-visible {
 .ep-secondary {
   height: 36px;
   padding: 0 18px;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   border-radius: 8px;
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -865,7 +865,7 @@ input:focus-visible {
 .ep-primary {
   height: 36px;
   padding: 0 22px;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   border-radius: 8px;
   background: #4c9aff;
   border: 1px solid #4c9aff;
@@ -897,7 +897,7 @@ input:focus-visible {
   display: block;
   width: 100%;
   padding: 9px 12px;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   text-align: left;
   background: transparent;
   border: none;
@@ -921,7 +921,7 @@ input:focus-visible {
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   color: #e7eaf0;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   z-index: 6;
   pointer-events: none;
 }
@@ -982,7 +982,7 @@ input:focus-visible {
   align-items: center;
   margin-left: 10px;
   padding: 1px 8px;
-  font-size: 11px;
+  font-size: calc(var(--ui-size, 14px) * 0.78571);
   border-radius: 999px;
   border: 1px solid transparent;
   vertical-align: middle;
@@ -1017,14 +1017,14 @@ input:focus-visible {
   min-width: 0;
   /* aligns with the select/button inner text */
   margin-left: 16px;
-  font-size: 12px;
+  font-size: calc(var(--ui-size, 14px) * 0.85714);
   color: #8b949e;
 }
 
 /* --- 更新 tab: Comfy-style heading + channel selector --- */
 
 .ep-version-heading {
-  font-size: 22px;
+  font-size: calc(var(--ui-size, 14px) * 1.57143);
   font-weight: 700;
   color: #e7eaf0;
   margin-bottom: 12px;
@@ -1047,7 +1047,7 @@ input:focus-visible {
   align-items: center;
   gap: 8px;
   padding: 14px 18px 10px;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   font-weight: 600;
   color: #969dab;
 }
@@ -1064,7 +1064,7 @@ input:focus-visible {
   width: 100%;
   height: 46px;
   padding: 0 16px;
-  font-size: 14px;
+  font-size: calc(var(--ui-size, 14px) * 1.0);
   text-align: left;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1133,7 +1133,7 @@ input:focus-visible {
   border-radius: 10px 10px 0 0;
   background: #1b1f2a;
   color: #e7eaf0;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   outline: none;
 }
 
@@ -1147,7 +1147,7 @@ input:focus-visible {
 
 .ep-select-empty {
   padding: 10px 14px;
-  font-size: 12px;
+  font-size: calc(var(--ui-size, 14px) * 0.85714);
   color: #5c6370;
 }
 
@@ -1175,14 +1175,14 @@ input:focus-visible {
 
 .ep-select-title {
   display: block;
-  font-size: 14px;
+  font-size: calc(var(--ui-size, 14px) * 1.0);
   color: #e7eaf0;
 }
 
 .ep-select-desc {
   display: block;
   margin-top: 2px;
-  font-size: 12px;
+  font-size: calc(var(--ui-size, 14px) * 0.85714);
   color: #969dab;
 }
 
@@ -1198,7 +1198,7 @@ input:focus-visible {
 .ep-select-desc-below {
   /* aligns with the select button's inner text (16px padding) */
   margin: 10px 16px 0;
-  font-size: 13px;
+  font-size: calc(var(--ui-size, 14px) * 0.92857);
   color: #969dab;
 }
 
@@ -1251,7 +1251,7 @@ input:focus-visible {
 .ep-seg-btn {
   height: 26px;
   padding: 0 14px;
-  font-size: 12px;
+  font-size: calc(var(--ui-size, 14px) * 0.85714);
   border: none;
   border-radius: 999px;
   background: transparent;

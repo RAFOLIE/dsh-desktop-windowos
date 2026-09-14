@@ -395,7 +395,7 @@ pub(crate) fn ui_theme() -> String {
         .to_string()
 }
 
-pub(crate) fn set_ui_theme(theme: &str) {
+pub(crate) fn set_ui_theme(theme: &str) -> Result<(), String> {
     let value = match theme {
         "dark" => "dark",
         "light" => "light",
@@ -403,7 +403,11 @@ pub(crate) fn set_ui_theme(theme: &str) {
     };
     let mut settings = read_settings();
     settings["uiTheme"] = json!(value);
-    write_settings(settings);
+    let path = settings_path();
+    let staged = path.with_extension("theme.tmp");
+    let bytes = serde_json::to_vec(&settings).map_err(|e| e.to_string())?;
+    std::fs::write(&staged, bytes).map_err(|e| e.to_string())?;
+    std::fs::rename(&staged, &path).map_err(|e| e.to_string())
 }
 
 /// Shell UI locale preference: "system"(default) | "zh" | "zh-Hant" | "en" |
@@ -671,7 +675,7 @@ pub(crate) mod autostart {
 
 /// User-entered dsh executable (dsh.cmd/dsh.exe) saved from the notfound
 /// dialog; `None` when unset or the file no longer exists (self-healing).
-fn custom_dsh_path() -> Option<String> {
+pub(crate) fn custom_dsh_path() -> Option<String> {
     read_settings()
         .get("customDshPath")
         .and_then(|x| x.as_str())
@@ -1469,7 +1473,7 @@ fn port_listener_pid() -> Option<u32> {
 /// Who owns the DSH port: pid, command line, and whether the parent chain
 /// leads back to this app (ours) or to an external instance. PowerShell does
 /// the chain walk; JSON keeps the boundary parse-free.
-fn port_owner_info() -> Option<Value> {
+pub(crate) fn port_owner_info() -> Option<Value> {
     let pid = port_listener_pid()?;
     let script = format!(
         "$p = Get-CimInstance Win32_Process -Filter 'ProcessId={pid}'; \
@@ -1553,57 +1557,7 @@ fn dir_size_bounded(dir: &Path) -> Option<u64> {
 /// install even in attach mode), else derived from the dsh launcher on PATH
 /// or a local install.
 fn dsh_web_version() -> Option<String> {
-    let read_version = |pkg_root: &Path| -> Option<String> {
-        let text = std::fs::read_to_string(pkg_root.join("package.json")).ok()?;
-        serde_json::from_str::<Value>(&text)
-            .ok()?
-            ["version"]
-            .as_str()
-            .map(str::to_string)
-    };
-    // Running backend: cmd line embeds ...\node_modules\@deepseek-ai\dsh\lib\...
-    if let Some(cmd) = port_owner_info()
-        .and_then(|owner| owner["cmd"].as_str().map(str::to_string))
-    {
-        if let Some(pos) = cmd.find("node_modules\\@deepseek-ai\\dsh") {
-            let tail = &cmd[pos..];
-            if let Some(lib) = tail.find("\\lib\\") {
-                let pkg_root = &tail[..lib]; // node_modules\@deepseek-ai\dsh
-                if let Some(v) = read_version(Path::new(pkg_root)) {
-                    return Some(v);
-                }
-            }
-        }
-    }
-    // Global launcher: <npm-dir>\dsh.cmd → <npm-dir>\node_modules\@deepseek-ai\dsh
-    if let Some(shim) = where_first("dsh") {
-        if let Some(dir) = Path::new(&shim).parent() {
-            if let Some(v) =
-                read_version(&dir.join("node_modules").join("@deepseek-ai").join("dsh"))
-            {
-                return Some(v);
-            }
-            // Local install: <root>\node_modules\.bin\dsh.cmd → <root>\node_modules\@deepseek-ai\dsh
-            if dir.file_name().map(|n| n == ".bin").unwrap_or(false) {
-                if let Some(root) = dir.parent() {
-                    if let Some(v) = read_version(&root.join("@deepseek-ai").join("dsh")) {
-                        return Some(v);
-                    }
-                }
-            }
-        }
-    }
-    // Local install fallback without PATH.
-    if let Some((shim, _root)) = find_local_install() {
-        if let Some(bin) = shim.parent() {
-            if let Some(root) = bin.parent() {
-                if let Some(v) = read_version(&root.join("@deepseek-ai").join("dsh")) {
-                    return Some(v);
-                }
-            }
-        }
-    }
-    None
+    crate::backend_update::running_version()
 }
 
 /// Environment facts for the env panel, modelled on Comfy Desktop's
@@ -1772,6 +1726,7 @@ pub fn npm_probe() -> Value {
 /// install (500+ packages) can take minutes; it runs on its own thread and
 /// reports progress through the usual `dsh-status` events.
 pub fn install_global_npm(app: AppHandle, registry: Option<&str>) {
+    if crate::backend_update::busy() { return; }
     // Whitelist: only the two probed registries may enter the command line.
     // Owned because the install thread outlives this call.
     let url = registry
@@ -1841,6 +1796,7 @@ pub fn install_global_npm(app: AppHandle, registry: Option<&str>) {
 
 /// Re-arm after a failure: tear down any stale owned subprocess, then startup.
 pub fn retry(app: AppHandle) {
+    if crate::backend_update::busy() { return; }
     teardown(&app);
     let app2 = app.clone();
     std::thread::spawn(move || startup(app2));
@@ -1850,6 +1806,7 @@ pub fn retry(app: AppHandle) {
 /// consent so future cold starts include the npx candidate automatically, then
 /// run exactly that candidate now.
 pub fn download_and_start(app: AppHandle) {
+    if crate::backend_update::busy() { return; }
     save_prefer_npx(true);
     teardown(&app);
     let app2 = app.clone();
@@ -1891,6 +1848,7 @@ pub fn stop_backend(app: &AppHandle) {
 }
 
 pub fn restart(app: AppHandle) {
+    if crate::backend_update::busy() { return; }
     // Pop the window first so a restart triggered while hidden in the tray is
     // visibly underway instead of looking like a no-op.
     crate::show_main_window(&app);
@@ -2067,7 +2025,7 @@ fn log_path() -> std::path::PathBuf {
 
 /// Kill a process *tree* by root PID. `cmd /C …` → node is a grandchild; `/T`
 /// walks the tree so nothing survives on 3080.
-fn kill_tree(pid: u32) {
+pub(crate) fn kill_tree(pid: u32) {
     let mut command = Command::new("taskkill");
     command.args(["/PID", &pid.to_string(), "/T", "/F"]);
     apply_no_window(&mut command);
@@ -2426,6 +2384,7 @@ pub fn webchat_auth_flow(app: &AppHandle) -> String {
 pub(crate) fn rollback_dsh_to_previous() -> Result<(), String> {
     let version = read_previous_dsh_version()
         .ok_or_else(|| "没有保存的回滚版本".to_string())?;
+    semver::Version::parse(&version).map_err(|_| "保存的回滚版本无效".to_string())?;
     let npm = where_first("npm")
         .ok_or_else(|| "未找到 npm(需要已安装 Node.js)".to_string())?;
     let cmd = format!("\"{npm}\" install -g @deepseek-ai/dsh@{version}");
@@ -2448,15 +2407,9 @@ fn previous_version_path() -> std::path::PathBuf {
 
 /// Save the current dsh CLI version before an upgrade so the shell can
 /// offer a rollback if the new version is incompatible (issue #11 scenario).
-pub(crate) fn save_previous_dsh_version() {
-    let version = run_capture("dsh.cmd", &["--version"])
-        .or_else(|| run_capture("dsh", &["--version"]))
-        .unwrap_or_default();
-    let version = version.trim().trim_start_matches('v').to_string();
-    if version.is_empty() {
-        return;
-    }
-    let _ = std::fs::write(previous_version_path(), &version);
+pub(crate) fn save_previous_version(version: &str) -> Result<(), String> {
+    semver::Version::parse(version).map_err(|e| e.to_string())?;
+    std::fs::write(previous_version_path(), version).map_err(|e| e.to_string())
 }
 
 /// The last known-good dsh version saved before an upgrade.
