@@ -15,14 +15,14 @@ import {
   type Locale,
   type LocalePref,
 } from "./i18n";
-import { applySkin, loadUiTheme, watchSystemSkin } from "./theme";
+import { watchSystemSkin } from "./theme";
 import "./App.css";
 import "./Settings.css";
 import "./Appearance.css";
 
 /** Rust→frontend lifecycle payloads emitted on the `dsh-status` channel. */
 type DshStatus =
-  | { status: "starting"; method?: string }
+  | { status: "starting"; method?: string; phase?: string; elapsed?: number; budget?: number }
   | { status: "ready"; attached: boolean; method?: string }
   | { status: "notfound" }
   | { status: "error"; message: string };
@@ -73,7 +73,7 @@ function App() {
    *  backend enforces BrowserAuth (issue #10) — refreshed on every ready. */
   const [webchatSrc, setWebchatSrc] = useState(WEBCHAT_URL);
   /** Whether the webchat is on screen (boot/error/update-wait views cover it). */
-  const [chatVisible, setChatVisible] = useState(false);
+  const chatVisible = status.status === "ready" && webchatMounted;
   /** Bumped on every ready *transition* after the first mount — remounts the
    *  iframe so a restarted backend gets a fresh webchat instead of a dead page. */
   const [reloadKey, setReloadKey] = useState(0);
@@ -125,16 +125,11 @@ function App() {
     refreshEnv();
   }, [refreshEnv]);
 
-  // Shell skin: paint <html data-theme> from the persisted「外观」preference
-  // as early as possible; "system" keeps following OS flips live on the shell
-  // (the embedded webchat scheme updates on next launch — v1.6.34/#8 notes).
+  // The initial theme is applied before React renders. Reveal only once the
+  // shell DOM has committed; native code ignores repeats and page reloads.
   useEffect(() => {
-    let unwatch: (() => void) | null = null;
-    loadUiTheme().then((pref) => {
-      applySkin(pref);
-      unwatch = watchSystemSkin();
-    });
-    return () => unwatch?.();
+    void invoke("window_shell_ready").catch(() => {});
+    return watchSystemSkin();
   }, []);
 
   // Locale: load persisted preference, then wrap everything in LocaleContext.
@@ -209,7 +204,6 @@ function App() {
           }
         } else {
           wasReady.current = false;
-          setChatVisible(false);
         }
       });
       unlistenUpdate = await listen<AppUpdate>("app-update", (event) => {
@@ -264,22 +258,8 @@ function App() {
     setCheckVisible(false);
   }, [update]);
 
-  // Reveal the webchat on ready — but let a running update finish first so
-  // the transient titlebar indicator is actually seen. After `done` the Rust
-  // side restarts the app onto the new exe; switching here is only the
-  // fallback if that restart never arrives. `failed`: show why first.
-  useEffect(() => {
-    if (status.status !== "ready") return;
-    const busy =
-      update.state === "pending" ||
-      update.state === "checking" ||
-      update.state === "downloading";
-    if (busy) return;
-    const delay =
-      update.state === "done" ? 8_000 : update.state === "failed" ? 4_000 : 0;
-    const timer = setTimeout(() => setChatVisible(true), delay);
-    return () => clearTimeout(timer);
-  }, [status.status, update.state]);
+  // Desktop update checks run independently. A ready, authenticated chat
+  // must never wait for GitHub or an update event that may have been missed.
 
   const closePanel = useCallback(() => {
     setOverlay(null);
@@ -335,6 +315,9 @@ function App() {
                   {t("boot.starting")}
                   {status.method ? `(${status.method})` : ""}
                 </div>
+                {status.elapsed !== undefined && status.budget !== undefined && (
+                  <div className="detail" role="status">{t("boot.startupProgress", { elapsed: status.elapsed, budget: status.budget })}</div>
+                )}
                 {status.method?.includes("npx") && (
                   <div className="detail">{t("boot.npxFirstRun")}</div>
                 )}

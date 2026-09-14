@@ -31,6 +31,7 @@ export const zh = {
 
   // --- shell boot views ---
   "boot.starting": "正在启动 DSH…",
+  "boot.startupProgress": "已等待 {elapsed} 秒 · 此次启动最多等待 {budget} 秒",
   "boot.npxFirstRun": "首次运行需下载 DSH 包,可能需要几分钟,请耐心等待",
   "boot.updateDownloading": "正在更新应用 v{version}…完成后自动进入",
   "boot.updateDoneRestarting": "已更新到 v{version},正在自动重启…",
@@ -246,6 +247,7 @@ const en: Dict = {
   "panel.copyFailed": "Could not copy. Please try again.",
 
   "boot.starting": "Starting DSH…",
+  "boot.startupProgress": "Waiting {elapsed}s · Up to {budget}s for this attempt",
   "boot.npxFirstRun":
     "First run downloads the DSH package — this can take a few minutes, please wait",
   "boot.updateDownloading": "Updating app to v{version}… entering automatically when done",
@@ -452,6 +454,7 @@ const zhHant: Dict = {
   "panel.copyFailed": "複製失敗，請重試",
 
   "boot.starting": "正在啟動 DSH…",
+  "boot.startupProgress": "已等待 {elapsed} 秒 · 此次啟動最多等待 {budget} 秒",
   "boot.npxFirstRun": "首次執行需下載 DSH 套件，可能需要幾分鐘，請耐心等待",
   "boot.updateDownloading": "正在更新應用 v{version}…完成後自動進入",
   "boot.updateDoneRestarting": "已更新到 v{version}，正在自動重啟…",
@@ -639,6 +642,7 @@ const ja: Dict = {
   "panel.copyFailed": "コピーできませんでした。もう一度お試しください。",
 
   "boot.starting": "DSH を起動しています…",
+  "boot.startupProgress": "{elapsed} 秒経過 · 今回の起動は最大 {budget} 秒待機",
   "boot.npxFirstRun": "初回起動時は DSH パッケージをダウンロードするため、数分かかることがあります。お待ちください",
   "boot.updateDownloading": "アプリを v{version} に更新中…完了後、自動的に切り替わります",
   "boot.updateDoneRestarting": "v{version} への更新が完了し、自動再起動中…",
@@ -826,6 +830,7 @@ const ko: Dict = {
   "panel.copyFailed": "복사하지 못했습니다. 다시 시도하세요.",
 
   "boot.starting": "DSH 시작 중…",
+  "boot.startupProgress": "{elapsed}초 경과 · 이번 시작은 최대 {budget}초 대기",
   "boot.npxFirstRun": "첫 실행 시 DSH 패키지를 다운로드하므로 몇 분 걸릴 수 있습니다. 기다려 주세요",
   "boot.updateDownloading": "앱을 v{version}(으)로 업데이트 중… 완료 후 자동 전환",
   "boot.updateDoneRestarting": "v{version} 업데이트 완료, 자동 재시작 중…",
@@ -1013,6 +1018,7 @@ const ru: Dict = {
   "panel.copyFailed": "Не удалось скопировать. Повторите попытку.",
 
   "boot.starting": "Запуск DSH…",
+  "boot.startupProgress": "Ожидание: {elapsed} с · До {budget} с на эту попытку",
   "boot.npxFirstRun": "При первом запуске скачивается пакет DSH — это может занять несколько минут. Подождите",
   "boot.updateDownloading": "Обновление приложения до v{version}… после завершения вход выполнится автоматически",
   "boot.updateDoneRestarting": "Обновлено до v{version}, идёт автоматический перезапуск…",

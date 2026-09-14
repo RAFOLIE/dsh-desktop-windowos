@@ -1,10 +1,10 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { MorphIcon } from "morphicons/react";
-import { Sun, Moon, Copy, RotateCcw, Upload, Plus, MessageSquare, type IconNode } from "lucide";
+import { Sun, Moon, Copy, ClipboardPaste, RotateCcw, Upload, Plus, MessageSquare, type IconNode } from "lucide";
 import { useI18n } from "./i18n";
-import { appearanceText } from "./appearanceI18n";
-import { defaults, exportTheme, importTheme, preset, tokens, font, fontStack, validateTheme, type Appearance as Config, type Scheme, type ThemeColors } from "./appearanceModel";
+import { appearanceText, presetLabel, frameText, pasteText } from "./appearanceI18n";
+import { PRESET_IDS, matchingPreset, type PresetId, defaults, exportTheme, importTheme, preset, tokens, font, fontStack, validateTheme, type Appearance as Config, type Scheme, type ThemeColors } from "./appearanceModel";
 import { applySkin, currentPref, getAppearance, loadUiTheme, resolveSkin, saveAppearance, type UiTheme } from "./theme";
 
 const Icon = ({ icon }: { icon: IconNode }) => <MorphIcon icon={icon} size={16} reducedMotion="user" aria-hidden="true" />;
@@ -21,6 +21,9 @@ function TextField({ value, label, list, onSave }: { value: string; label: strin
 export default function Appearance() {
   const { t, locale } = useI18n();
   const m = appearanceText(locale);
+  const frameMessages = frameText(locale);
+  const pasteMessages = pasteText(locale);
+  const [pasting, setPasting] = useState(false);
   const [config, setConfig] = useState(getAppearance);
   const [mode, setMode] = useState<UiTheme>(currentPref);
   const [active, setActive] = useState(() => resolveSkin(currentPref()));
@@ -52,6 +55,18 @@ export default function Appearance() {
     try { await navigator.clipboard.writeText(text); setNotice(m.copied); setError(""); }
     catch { setJson(text); setTransfer("copy"); setError(m.copyError); }
   }
+  async function paste(scheme: Scheme) {
+    setPasting(true);
+    try {
+      let text: string;
+      try { text = await navigator.clipboard.readText(); }
+      catch { setError(pasteMessages.failed); return; }
+      try {
+        const value = importTheme(text);
+        if (commit({ ...getAppearance(), [scheme]: value.theme })) setNotice(pasteMessages.pasted);
+      } catch { setError(m.invalid); }
+    } finally { setPasting(false); }
+  }
   const toggle = (key: "pointer" | "translucent", title: string) => <button type="button" role="switch" aria-label={title} aria-checked={config[key]} className={`ep-switch${config[key] ? " on" : ""}`} onClick={() => commit({ ...config, [key]: !config[key] })} />;
   return <div className="ep-content-inner ap-settings">
     <div className="ep-card"><Row title={t("set.theme")} help={m.scope}><div className="ep-seg" role="radiogroup" aria-label={t("set.theme")}>
@@ -60,7 +75,7 @@ export default function Appearance() {
     <section className="ep-group ap-themes"><div className="ap-section-heading"><h2>{m.themes}</h2><span>{m.saved}</span></div>
       <div className="ap-theme-grid">{(["light", "dark"] as const).map(scheme => {
         const theme = config[scheme];
-        const selectedPreset = (["dsh", "codex"] as const).find(name => JSON.stringify(theme) === JSON.stringify(preset(scheme, name))) ?? "custom";
+        const selectedPreset = matchingPreset(scheme, theme);
         return <article className="ap-theme-card" key={scheme} aria-label={m[scheme]}>
           <header><h3><Icon icon={scheme === "light" ? Sun : Moon} />{m[scheme]}</h3><span className={active === scheme ? "ap-active" : ""}>{active === scheme ? m.active : m.editing}</span></header>
           <div className="ap-preview" aria-label={`${m[scheme]} ${m.preview}`} style={{ ...tokens(theme), fontFamily: fontStack(config.uiFont), fontSize: `${config.uiSize}px` } as CSSProperties}>
@@ -68,11 +83,19 @@ export default function Appearance() {
             <div className="ap-preview-main"><strong>{m.sample}</strong><code style={{ fontFamily: fontStack(config.codeFont, true), fontSize: `${config.codeSize}px` }}>console.log("Hello, DSH")</code><div className="ap-preview-bottom"><span className="ap-preview-button"><Icon icon={Plus}/>{m.task}</span><span className="ap-preview-switch"/></div></div>
           </div>
           <div className="ap-theme-fields">
-            <Row title={m.preset}><select aria-label={`${m[scheme]} ${m.preset}`} value={selectedPreset} onChange={e => commit({ ...config, [scheme]: preset(scheme, e.target.value as "dsh" | "codex") })}><option value="dsh">DSH</option><option value="codex">Codex</option><option value="custom" disabled>{m.custom}</option></select></Row>
+            <Row title={m.preset}><select aria-label={`${m[scheme]} ${m.preset}`} value={selectedPreset} onChange={e => commit({ ...config, [scheme]: preset(scheme, e.target.value as PresetId) })}>{PRESET_IDS.map((name, index) => <option key={name} value={name}>{presetLabel(locale, index)}</option>)}<option value="custom" disabled>{m.custom}</option></select></Row>
             {(["accent", "background", "foreground"] as const).map(key => <Row title={m[key]} key={key}><div className="ap-color"><input type="color" aria-label={`${m[scheme]} ${m[key]} picker`} value={theme[key]} onChange={e => changeTheme(scheme, { [key]: e.target.value })}/><TextField label={`${m[scheme]} ${m[key]} HEX`} value={theme[key]} onSave={v => changeTheme(scheme, { [key]: v })}/></div></Row>)}
+            <Row title={frameMessages.surface}><div className="ap-color">
+              <input type="color" aria-label={`${m[scheme]} ${frameMessages.surface} picker`} value={theme.surface ?? tokens(theme)["--ep-card"]} onChange={e => changeTheme(scheme, { surface: e.target.value })}/>
+              <TextField label={`${m[scheme]} ${frameMessages.surface} HEX`} value={theme.surface ?? tokens(theme)["--ep-card"]} onSave={v => changeTheme(scheme, { surface: v })}/>
+            </div></Row>
+            <Row title={frameMessages.frame}><div className="ap-frame-control"><div className="ap-color">
+              <input type="color" aria-label={`${m[scheme]} ${frameMessages.frame} picker`} value={theme.frame ?? tokens(theme)["--frame-bg"]} onChange={e => changeTheme(scheme, { frame: e.target.value })}/>
+              <TextField label={`${m[scheme]} ${frameMessages.frame} HEX`} value={theme.frame ?? tokens(theme)["--frame-bg"]} onSave={v => changeTheme(scheme, { frame: v })}/>
+            </div></div></Row>
             <Row title={m.contrast}><div className="ap-range"><input type="range" aria-label={`${m[scheme]} ${m.contrast}`} min={0} max={100} value={theme.contrast} onChange={e => changeTheme(scheme, { contrast: Number(e.target.value) })}/><output>{theme.contrast}</output></div></Row>
           </div>
-          <footer><button className="ep-secondary" onClick={() => void copy(scheme)}><Icon icon={Copy}/>{m.copy}</button><button className="ep-secondary" onClick={() => commit({ ...config, [scheme]: preset(scheme) })}><Icon icon={RotateCcw}/>{m.reset}</button></footer>
+          <footer><button className="ep-secondary" onClick={() => void copy(scheme)}><Icon icon={Copy}/>{m.copy}</button><button className="ep-secondary" disabled={pasting} onClick={() => void paste(scheme)}><Icon icon={ClipboardPaste}/>{pasteMessages.paste}</button><button className="ep-secondary" onClick={() => commit({ ...config, [scheme]: preset(scheme) })}><Icon icon={RotateCcw}/>{m.reset}</button></footer>
         </article>;
       })}</div>
       <div className="ap-import-action"><button className="ep-secondary" onClick={() => { setTransfer("import"); setJson(""); setError(""); }}><Icon icon={Upload}/>{m.import}</button></div>

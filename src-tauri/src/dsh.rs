@@ -1,7 +1,7 @@
 //! DSH (DeepSeek Harness) lifecycle: readiness probe, spawn, teardown.
 //!
 //! Launch strategy — local-first, download only on explicit consent:
-//!   1. `DSH_CMD` env override (optional `DSH_CWD`) replaces the whole chain;
+//!   1. `DSH_CMD` env override (optional `DSH_CWD`) leads the chain;
 //!      for source-checkout development (`pnpm dsh web` in the repo).
 //!   2. `dsh web` — a globally installed `dsh` found on PATH (npm/pnpm -g).
 //!   3. Project-local install — `node_modules\.bin\dsh.cmd` searched in the
@@ -31,14 +31,13 @@ const DSH_ORIGIN: &str = "http://127.0.0.1:3080";
 const DSH_BASE: &str = "http://127.0.0.1:3080";
 
 /// Readiness window for the single-command `DSH_CMD` chain.
-const DSH_CMD_WINDOW: Duration = Duration::from_secs(120);
+const DSH_CMD_WINDOW: Duration = crate::startup_policy::INSTALLED_WINDOW;
 /// Readiness window for the npx candidate: its first run downloads the full
 /// package (500+ dependencies) before booting, which took over two minutes
 /// in practice — five minutes leaves headroom for slow links.
-const NPX_FIRST_RUN_WINDOW: Duration = Duration::from_secs(300);
-/// Window for the global-`dsh` candidate: boot is fast, and a missing command
-/// exits immediately instead of consuming the window.
-const GLOBAL_WINDOW: Duration = Duration::from_secs(30);
+const NPX_FIRST_RUN_WINDOW: Duration = crate::startup_policy::NPX_WINDOW;
+/// Cold profile composition can exceed a minute. Missing commands still exit immediately.
+const GLOBAL_WINDOW: Duration = crate::startup_policy::INSTALLED_WINDOW;
 /// Interval between readiness probes.
 const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -158,6 +157,16 @@ fn candidates() -> Vec<Candidate> {
     if prefer_npx() {
         list.push(npx_candidate(cwd));
     }
+    // Deduplicate only identical commands/workspaces or verified package targets.
+    let mut identities = std::collections::HashSet::new();
+    list.retain(|candidate| {
+        let target = candidate.cmd.strip_prefix('"').and_then(|s| s.split_once('"'))
+            .filter(|(_, args)| matches!(args.trim(), "web" | "web --no-open"))
+            .and_then(|(path, _)| crate::startup_policy::cli_root(Path::new(path)));
+        let key = target.map(|p| format!("package:{}", p.display()).to_lowercase())
+            .unwrap_or_else(|| candidate.cmd.clone());
+        identities.insert((key, candidate.cwd.clone()))
+    });
     list
 }
 
@@ -181,77 +190,14 @@ pub(crate) fn dsh_cli_command(sub: &str) -> Option<String> {
     None
 }
 
-/// The official zero-install command; its first run downloads 500+
-/// dependencies before booting.
-/// ` --no-open` when the resolved dsh understands it, else empty. rc.8+
-/// auto-opens the default browser on local `dsh web` — wrong for a desktop
-/// shell that shows the webchat itself — but older builds reject unknown
-/// options outright, so the flag is only appended after probing
-/// `<dsh> web --help` for it. Cached per resolved path per session.
+/// Read package metadata without launching a profile. No stale capability cache.
 fn no_open_suffix(dsh_path: &str) -> &'static str {
-    static CACHE: Mutex<Option<(String, bool)>> = Mutex::new(None);
-    if let Ok(cache) = CACHE.lock() {
-        if let Some((path, supported)) = cache.as_ref() {
-            if path == dsh_path {
-                return if *supported { " --no-open" } else { "" };
-            }
-        }
+    let capability = crate::startup_policy::no_open(Path::new(dsh_path));
+    supervision_log(&format!("--no-open read-only capability: {capability:?}"));
+    if capability == crate::startup_policy::Capability::Unknown {
+        supervision_log("unrecognized CLI wrapper or package layout: launching without --no-open; DSH may open its own browser");
     }
-    let supported = web_help_mentions_no_open(dsh_path);
-    if let Ok(mut cache) = CACHE.lock() {
-        *cache = Some((dsh_path.to_string(), supported));
-    }
-    if supported {
-        supervision_log(&format!(
-            "dsh at {dsh_path} supports --no-open (rc.8+); suppressing auto browser"
-        ));
-    }
-    if supported { " --no-open" } else { "" }
-}
-
-/// Run `"<dsh>" web --help` hidden and check whether the flag family lists
-/// --no-open. --help is safe on every version (unknown options only fail at
-/// parse time). Hard-capped: rc.2 prints the help immediately but its boot
-/// path lingers (background loaders keep the process alive), so an
-/// unbounded wait once wedged the whole startup chain (2026-08-25) — after
-/// 8s we take whatever printed, kill the tree, and judge from that.
-fn web_help_mentions_no_open(dsh_path: &str) -> bool {
-    let mut command = Command::new("cmd");
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.raw_arg(format!("/S /C \"\"{dsh_path}\" web --help\""));
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-    #[cfg(not(windows))]
-    {
-        command.arg("-c").arg(format!("'{dsh_path}' web --help"));
-    }
-    command.stdout(Stdio::piped()).stderr(Stdio::null());
-    let Ok(mut child) = command.spawn() else {
-        return false;
-    };
-    let deadline = Instant::now() + Duration::from_secs(8);
-    let mut exited = false;
-    while Instant::now() < deadline {
-        match child.try_wait() {
-            Ok(Some(_)) => {
-                exited = true;
-                break;
-            }
-            Ok(None) => std::thread::sleep(Duration::from_millis(150)),
-            Err(_) => return false,
-        }
-    }
-    if !exited {
-        supervision_log("--no-open probe timed out after 8s (help printed but lingered); killing and judging from partial output");
-        kill_tree(child.id());
-    }
-    let Ok(output) = child.wait_with_output() else {
-        return false;
-    };
-    let text = console_decode(&output.stdout) + &console_decode(&output.stderr);
-    text.contains("--no-open")
+    if capability == crate::startup_policy::Capability::Supported { " --no-open" } else { "" }
 }
 
 fn npx_candidate(cwd: String) -> Candidate {
@@ -754,10 +700,38 @@ pub(crate) fn probe_ready_once() -> bool {
     false
 }
 
+// Browser requests follow this lifecycle rather than a separate short deadline.
+static START_GATE: Mutex<()> = Mutex::new(());
+static START_STATUS: Mutex<Option<Value>> = Mutex::new(None);
+static START_ACTIVE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+struct StartupGuard;
+impl StartupGuard {
+    fn new() -> Self {
+        START_ACTIVE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Self
+    }
+}
+impl Drop for StartupGuard {
+    fn drop(&mut self) { START_ACTIVE.fetch_sub(1, std::sync::atomic::Ordering::SeqCst); }
+}
+pub(crate) fn startup_active() -> bool { START_ACTIVE.load(std::sync::atomic::Ordering::SeqCst) > 0 }
+pub(crate) fn startup_terminal() -> bool {
+    START_STATUS.lock().ok().and_then(|v| v.as_ref().map(|s| matches!(s["status"].as_str(), Some("error" | "notfound")))).unwrap_or(false)
+}
+fn startup_report(app: &AppHandle, value: Value) {
+    if let Ok(mut state) = START_STATUS.lock() { *state = Some(value.clone()); }
+    let _ = app.emit("dsh-status", value);
+}
+fn startup_progress(app: &AppHandle, candidate: &Candidate, started: Instant, phase: &str) {
+    startup_report(app, json!({"status":"starting", "method":candidate.label,
+        "phase":phase, "elapsed":started.elapsed().as_secs(), "budget":candidate.window.as_secs()}));
+}
+
 /// Outcome of one candidate attempt.
 enum Attempt {
     Ready,
     Failed(String),
+    Blocked(String),
 }
 
 
@@ -784,11 +758,14 @@ pub(crate) fn emit_current_status(app: &AppHandle) {
         }
         std::thread::sleep(Duration::from_millis(400));
     }
-    // Backend not answering: leave the UI to the normal startup/supervision
-    // flow — don't invent state here.
+    if let Some(snapshot) = START_STATUS.lock().ok().and_then(|s| s.clone()) {
+        let _ = app.emit("dsh-status", snapshot);
+    }
 }
 
-fn emit_ready(app: &AppHandle, attached: bool, method: Option<String>) {    let app2 = app.clone();
+fn emit_ready(app: &AppHandle, attached: bool, method: Option<String>) {
+    startup_report(app, json!({"status":"ready", "attached":attached, "method":method}));
+    let app2 = app.clone();
     std::thread::spawn(move || {
         for _ in 0..10 {
             let mut payload = json!({ "status": "ready", "attached": attached });
@@ -806,6 +783,9 @@ fn emit_ready(app: &AppHandle, attached: bool, method: Option<String>) {    let 
 /// `{status:"ready",attached,method}` or `{status:"error",message}` with every
 /// attempt's failure reason.
 pub fn startup(app: AppHandle) {
+    let Ok(_gate) = START_GATE.try_lock() else { return; };
+    let _lifecycle = StartupGuard::new();
+    startup_report(&app, json!({"status":"starting", "phase":"discovering"}));
     // Attach path: DSH already up — never spawn, never kill on exit.
     if probe_ready_once() {
         emit_ready(&app, true, None);
@@ -817,7 +797,7 @@ pub fn startup(app: AppHandle) {
     // No local DSH and no consented download: hand the choice to the user
     // instead of silently pulling 500+ dependencies.
     if chain.is_empty() {
-        let _ = app.emit("dsh-status", json!({ "status": "notfound" }));
+        startup_report(&app, json!({ "status": "notfound" }));
         return;
     }
     for candidate in chain {
@@ -828,17 +808,19 @@ pub fn startup(app: AppHandle) {
         match try_candidate(&app, &candidate) {
             Attempt::Ready => return,
             Attempt::Failed(reason) => {
+                supervision_warn(&format!("candidate {} failed; trying next available source", candidate.label));
                 failures.push(format!("「{}」{}", candidate.label, reason));
+            }
+            Attempt::Blocked(reason) => {
+                startup_report(&app, json!({"status":"error", "message":reason}));
+                return;
             }
         }
     }
-    let _ = app.emit(
-        "dsh-status",
-        json!({
-            "status": "error",
-            "message": format!("所有启动方式均失败:\n{}", failures.join("\n")),
-        }),
-    );
+    startup_report(&app, json!({
+        "status": "error",
+        "message": format!("所有启动方式均失败:\n{}", failures.join("\n")),
+    }));
 }
 
 /// Spawn one candidate and poll until ready, early exit, or window expiry.
@@ -852,14 +834,18 @@ fn try_candidate(app: &AppHandle, candidate: &Candidate) -> Attempt {
     log_attempt(candidate);
     for attempt in 0..2 {
         child_tail_clear();
-        let mut child = match spawn_command(&candidate.cmd, &candidate.cwd) {
+        let (mut child, drained) = match spawn_command(&candidate.cmd, &candidate.cwd) {
             Ok(c) => c,
             Err(e) => return Attempt::Failed(format!("无法启动({e})\n")),
         };
         let pid = child.id();
-        let deadline = Instant::now() + candidate.window;
+        let started = Instant::now();
         loop {
-            if probe_ready_once() {
+            startup_progress(app, candidate, started, "waiting");
+            let ready = probe_ready_once();
+            let exit = if ready { Ok(None) } else { child.try_wait() };
+            let verdict = crate::startup_policy::poll(ready, matches!(exit, Ok(Some(_))), started.elapsed(), candidate.window);
+            if verdict == crate::startup_policy::Poll::Ready {
                 // The state keeps only the pid (for teardown's tree kill); the
                 // Child handle moves to the supervisor thread, which reaps the
                 // process and reacts to unexpected exits.
@@ -873,8 +859,25 @@ fn try_candidate(app: &AppHandle, candidate: &Candidate) -> Attempt {
             }
             // A missing command exits immediately; surface that instead of
             // waiting out the whole window — with the child's own last words.
-            match child.try_wait() {
+            match exit {
                 Ok(Some(status)) => {
+                    // stdout/stderr reader threads can lag the process exit.
+                    // Drain with a bound: an inherited pipe held by a grandchild
+                    // must never block failure reporting indefinitely.
+                    let drain_until = Instant::now() + Duration::from_millis(500);
+                    for _ in 0..2 {
+                        if drained.recv_timeout(drain_until.saturating_duration_since(Instant::now())).is_err() { break; }
+                    }
+                    let all_tail = child_tail_last(CHILD_TAIL_CAP);
+                    if let Some(path) = crate::startup_policy::writer_lock_path(&all_tail) {
+                        supervision_warn("profile writer lock timeout; startup chain stopped (lock preserved)");
+                        let owner = std::fs::metadata(&path).ok().filter(|m| m.is_file() && m.len() <= 64)
+                            .and_then(|_| std::fs::read_to_string(&path).ok())
+                            .and_then(|s| s.trim().parse::<u32>().ok())
+                            .map(|pid| format!("锁文件记录 PID {pid}（是否仍在写入需核实）"))
+                            .unwrap_or_else(|| "无法核实锁的占用进程".into());
+                        return Attempt::Blocked(format!("DSH profile 写入锁等待超时：{path}\n{owner}。请等待其他 DSH 安装/初始化完成后重试；若持续失败，确认相关写入进程已停止后再人工处理残留锁。桌面程序未删除此锁。"));
+                    }
                     let tail = child_tail_last(8);
                     let excerpt = child_tail_digest(4);
                     if !excerpt.is_empty() {
@@ -913,14 +916,20 @@ fn try_candidate(app: &AppHandle, candidate: &Candidate) -> Attempt {
                     return Attempt::Failed(format!("进程提前退出({status}){excerpt}\n"));
                 }
                 Ok(None) => {}
-                Err(e) => return Attempt::Failed(format!("无法查询子进程({e})\n")),
+                Err(e) => {
+                    kill_tree(pid);
+                    let _ = child.wait();
+                    return Attempt::Failed(format!("无法查询子进程({e})\n"));
+                }
             }
-            if Instant::now() >= deadline {
+            if verdict == crate::startup_policy::Poll::Timeout {
+                supervision_warn(&format!("candidate readiness timeout after {} seconds (budget {} seconds)", started.elapsed().as_secs(), candidate.window.as_secs()));
                 kill_tree(pid);
                 let _ = child.wait();
                 let excerpt = child_tail_digest(4);
                 return Attempt::Failed(format!(
-                    "就绪超时{}\n",
+                    "等待 {} 秒后仍未就绪{}\n",
+                    candidate.window.as_secs(),
                     if excerpt.is_empty() {
                         String::new()
                     } else {
@@ -1726,7 +1735,7 @@ pub fn npm_probe() -> Value {
 /// install (500+ packages) can take minutes; it runs on its own thread and
 /// reports progress through the usual `dsh-status` events.
 pub fn install_global_npm(app: AppHandle, registry: Option<&str>) {
-    if crate::backend_update::busy() { return; }
+    if crate::backend_update::busy() || startup_active() { return; }
     // Whitelist: only the two probed registries may enter the command line.
     // Owned because the install thread outlives this call.
     let url = registry
@@ -1796,7 +1805,7 @@ pub fn install_global_npm(app: AppHandle, registry: Option<&str>) {
 
 /// Re-arm after a failure: tear down any stale owned subprocess, then startup.
 pub fn retry(app: AppHandle) {
-    if crate::backend_update::busy() { return; }
+    if crate::backend_update::busy() || startup_active() { return; }
     teardown(&app);
     let app2 = app.clone();
     std::thread::spawn(move || startup(app2));
@@ -1806,24 +1815,32 @@ pub fn retry(app: AppHandle) {
 /// consent so future cold starts include the npx candidate automatically, then
 /// run exactly that candidate now.
 pub fn download_and_start(app: AppHandle) {
-    if crate::backend_update::busy() { return; }
+    if crate::backend_update::busy() || startup_active() { return; }
     save_prefer_npx(true);
     teardown(&app);
     let app2 = app.clone();
     std::thread::spawn(move || {
+        let Ok(_gate) = START_GATE.try_lock() else { return; };
+        let _lifecycle = StartupGuard::new();
+        startup_report(&app2, json!({"status":"starting", "phase":"discovering"}));
+        if probe_ready_once() { emit_ready(&app2, true, None); return; }
         let home = std::env::var("USERPROFILE").unwrap_or_else(|_| ".".to_string());
         let cwd = std::env::var("DSH_CWD")
             .ok()
             .filter(|dir| Path::new(dir).is_dir())
-            .unwrap_or(home);
+            .unwrap_or_else(|| {
+                let fixed = Path::new(&home).join(".dsh");
+                let _ = std::fs::create_dir_all(&fixed);
+                fixed.display().to_string()
+            });
         let candidate = npx_candidate(cwd);
         let _ = app2.emit(
             "dsh-status",
             json!({ "status": "starting", "method": candidate.label }),
         );
-        if let Attempt::Failed(reason) = try_candidate(&app2, &candidate) {
-            let _ = app2.emit(
-                "dsh-status",
+        if let Attempt::Failed(reason) | Attempt::Blocked(reason) = try_candidate(&app2, &candidate) {
+            startup_report(
+                &app2,
                 json!({
                     "status": "error",
                     "message": format!("「{}」{}", candidate.label, reason),
@@ -1848,11 +1865,12 @@ pub fn stop_backend(app: &AppHandle) {
 }
 
 pub fn restart(app: AppHandle) {
-    if crate::backend_update::busy() { return; }
+    if crate::backend_update::busy() || startup_active() { return; }
     // Pop the window first so a restart triggered while hidden in the tray is
     // visibly underway instead of looking like a no-op.
     crate::show_main_window(&app);
     std::thread::spawn(move || {
+        let _lifecycle = StartupGuard::new();
         let _ = app.emit(
             "dsh-status",
             json!({ "status": "starting", "method": "正在重启 dsh web" }),
@@ -1919,7 +1937,7 @@ fn log_attempt(candidate: &Candidate) {
 /// Spawn a shell command detached, no console window, with stdout+stderr
 /// piped into the bounded in-memory tail ring (crash causes stay visible;
 /// the unbounded stream is NOT logged — DSH keeps its own logs).
-fn spawn_command(cmd: &str, cwd: &str) -> std::io::Result<Child> {
+fn spawn_command(cmd: &str, cwd: &str) -> std::io::Result<(Child, std::sync::mpsc::Receiver<()>)> {
     let mut command = Command::new("cmd");
     // pnpm/npx/dsh are .cmd shims on Windows, so route through cmd /C; the
     // candidate command is a shell command string either way. Pass it via
@@ -1940,13 +1958,15 @@ fn spawn_command(cmd: &str, cwd: &str) -> std::io::Result<Child> {
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
     apply_no_window(&mut command);
     let mut child = command.spawn()?;
+    let (sent, drained) = std::sync::mpsc::channel();
     if let Some(out) = child.stdout.take() {
-        std::thread::spawn(move || pump_tail(out));
+        let sent = sent.clone();
+        std::thread::spawn(move || { pump_tail(out); let _ = sent.send(()); });
     }
     if let Some(err) = child.stderr.take() {
-        std::thread::spawn(move || pump_tail(err));
+        std::thread::spawn(move || { pump_tail(err); let _ = sent.send(()); });
     }
-    Ok(child)
+    Ok((child, drained))
 }
 
 /// Rotate the log ComfyUI-style at session start: archive the previous
@@ -2470,6 +2490,25 @@ pub(crate) fn read_previous_dsh_version() -> Option<String> {
 #[cfg(all(test, windows))]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "Isolated fake CLI; run alone because child output uses a shared ring"]
+    fn isolated_child_exit_drains_lock_error() {
+        let dir = std::env::temp_dir().join(format!("dsh-fake-cli-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let shim = dir.join("fake.cmd");
+        let lock = dir.join("node_modules.lock");
+        std::fs::write(&lock, std::process::id().to_string()).unwrap();
+        std::fs::write(&shim, format!("@echo off\r\necho atomic-write: timed out waiting for the writer lock at {}\r\nexit /b 17\r\n", lock.display())).unwrap();
+        child_tail_clear();
+        let (mut child, drained) = spawn_command(&format!("\"{}\"", shim.display()), &dir.display().to_string()).unwrap();
+        assert_eq!(child.wait().unwrap().code(), Some(17));
+        for _ in 0..2 { drained.recv_timeout(Duration::from_secs(2)).unwrap(); }
+        assert_eq!(crate::startup_policy::writer_lock_path(&child_tail_last(CHILD_TAIL_CAP)), Some(lock.display().to_string()));
+        assert_eq!(std::fs::read_to_string(&lock).unwrap(), std::process::id().to_string());
+        child_tail_clear();
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn gbk_console_bytes_decode_as_paths() {

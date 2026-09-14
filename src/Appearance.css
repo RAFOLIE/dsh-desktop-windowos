@@ -1,3 +1,6 @@
+/* Semantic feedback colors, independent of decorative theme presets. */
+:root { --status-error:#ef8585; --status-warn:#e9b86c; --status-ok:#70c994; }
+html[data-theme="light"] { --status-error:#b42332; --status-warn:#825b13; --status-ok:#28734a; }
 /* Shared shell tokens. The embedded chat is a separate document. */
 :root { --ui-size:14px; --code-size:13px; --ui-font:system-ui,"Segoe UI",sans-serif; --code-font:Consolas,monospace; --ep-bg:#191919; --ep-side:#202020; --ep-card:#242424; --ep-hover:#303030; --ep-line:#353535; --ep-text:#ededed; --ep-muted:#a0a0a0; --accent:#4d6bfe; --on-accent:#fff; font-family:var(--ui-font); font-size:var(--ui-size); }
 button, input, select, textarea { font-family:inherit; }
@@ -8,7 +11,7 @@ html[data-theme] :is(.tb-pill:hover,.ep-select-option:hover,.ep-menu button:hove
 html[data-theme] :is(.tb-pill.open,.ep-help.open,.ep-select-option.selected,.ep-pill.active,.ep-pill-sm.active) { background:var(--ep-hover); color:var(--ep-text); border-color:var(--accent); }
 html[data-theme] :is(.tb-btn,.tb-pill-chevron,.detail,.ep-select-desc,.ep-select-desc-below,.ep-hint-inline,.ep-select-empty) { color:var(--ep-muted); }
 html[data-theme] :is(.tb-btn:hover,.ep-select-search:focus) { background:var(--ep-hover); color:var(--ep-text); }
-html[data-theme] .tb-btn.close:hover { background:#c42b1c; color:white; }
+html[data-theme] .tb-btn.tb-close:hover { background:#c42b1c; color:white; }
 html[data-theme] :is(.ep-primary,.ep-primary:hover,.ep-switch.on,.ep-switch.on:hover,.btn-primary) { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
 html[data-theme] :is(.ep-switch:not(.on),.ep-switch:not(.on):hover) { background:var(--ep-line); }
 html[data-theme] :is(.ep-version-num,.boot-log-link,.tb-pill.open .tb-pill-chevron) { color:var(--accent); }
@@ -79,3 +82,26 @@ html[data-translucent="true"] .ap-preview aside { background:color-mix(in srgb,v
 @media(max-width:680px) { .ap-row { flex-wrap:wrap; gap:12px; } .ap-control { max-width:100%; } .ap-theme-fields .ap-row { flex-wrap:nowrap; } .ap-theme-card > header { flex-wrap:wrap; } .ap-preview aside { width:55px; } .ap-preview-main { padding:16px 10px; } }
 
 .web-hint-dismiss { margin-left:12px; color:inherit; border:0; background:transparent; font-size:18px; padding:0 6px; }
+
+.auth-hint-bar { color:var(--status-warn); background:var(--ep-card); border-color:var(--ep-line); }
+.ep-log-console { background:var(--ep-bg); color:var(--ep-muted); border-color:var(--ep-line); }
+
+/* Window frame: the titlebar and settings sidebar share the chosen color.
+   Scoped text tokens preserve legibility without recoloring the content. */
+html[data-theme] :is(.titlebar,.ep-sidebar), .ap-preview aside {
+  --ep-text:var(--frame-text); --ep-muted:var(--frame-muted);
+  --ep-hover:var(--frame-hover); --ep-card:var(--frame-bg);
+  color:var(--frame-text);
+}
+html[data-theme] .titlebar { background:var(--frame-title); }
+html[data-theme] .ep-sidebar, .ap-preview aside { background:var(--frame-bg); }
+html[data-translucent="true"] .ep-sidebar, html[data-translucent="true"] .ap-preview aside { background:color-mix(in srgb,var(--frame-bg) 76%,transparent); }
+.ap-frame-control { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+
+/* Opaque foreground surfaces remain separate from the page background. */
+html[data-theme] :is(.ep-card,.ap-theme-card,.state,.ep-toast,.ep-select-menu,.ep-menu,.ep-help-pop,.ap-feedback) {
+  --ep-text:var(--surface-text); --ep-muted:var(--surface-muted);
+  --ep-hover:var(--surface-hover); --ep-line:var(--surface-line);
+  background:var(--ep-card); color:var(--ep-text);
+}
+.ap-preview-main code { color:var(--surface-text); }

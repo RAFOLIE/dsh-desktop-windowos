@@ -30,10 +30,10 @@ DeepSeek Harness(DSH)的 Windows 桌面壳,基于 **Tauri v2 + React 18 + TypeSc
 
 ### 功能
 
-- **开箱即用**:双击 exe 自动启动 DSH(`dsh web`),就绪后窗口内嵌 `http://127.0.0.1:3080/` 的**原生 webchat 界面**(iframe 常驻壳,不自创聊天 UI、不做反向代理);DSH rc.8+ 本地运行会自动开浏览器,壳按版本探测追加 `--no-open` 抑制(探测带 8 秒硬超时,rc.2 的 `--help` 不退出也不再卡启动;老版本零影响)
+- **开箱即用**:双击 exe 启动本机 DSH 并嵌入原生 webchat。已安装候选等待最多 120 秒，npx 最多 300 秒；通过只读包文件识别 `--no-open`，不会为参数检测启动 profile。
 - **自绘标题栏**:无边框窗口,Comfy 式**胶囊控件**(鲸鱼标+名字+箭头)整颗居中——**点击打开环境管理面板**(开启态蓝边高亮、箭头翻转);拖拽区/最小化/最大化/关闭自绘,Win 贴靠与边缘缩放原生保留
 - **设置工作区**:点击标题栏胶囊打开左右布局的设置页，包含常规、外观、环境、更新和日志；支持全局设置搜索、图标导航、键盘操作与窄窗口布局。聊天 iframe 常驻，切换设置页保留聊天状态。
-- **外观定制**:浅色 / 深色 / 跟随系统，两套独立主题预览；DSH / Codex 预设、自定义配色与层次对比度、界面与代码字体字号、手形光标、半透明侧栏、主题复制 / 导入 / 重置。语言位于常规，支持跟随系统及六种语言。自定义颜色和字体作用于桌面外壳，聊天明暗模式重启后同步。
+- **外观定制**:浅色 / 深色 / 跟随系统；DSH、海洋、森林、紫罗兰、琥珀、玫瑰六个预设。分别设置强调色、背景色、文字、前景卡片和顶部/侧栏边框色；自由选色、层次对比度、字体字号、手形光标和半透明侧栏。主题支持复制、粘贴、导入与重置；语言位于常规。
 - **日志体系(ComfyUI 式)**:dsh.log 只记壳自身事件(启动/监护/更新;DSH web 输出不入日志,不再膨胀),`[本地时间] [INFO/WARN/ERROR]` 格式逐行着色,每次启动轮转历史文件;启动页「查看日志」实时看终端在跑什么;日志页带等级筛选/自动跟随/清空显示
 - **诊断包**:面板「更多 → 导出诊断信息」一键把环境配置+本次日志组装成 markdown——复制到剪贴板可直接粘贴给 AI 排障,无需翻目录查全局安装
 - **托盘常驻**:关闭窗口(X)只是隐藏到托盘,DSH 后台继续运行;**双击托盘图标**或**右键 → Open DSH** 随时唤回窗口;右键还有「重启 dsh web(后端)」「前后端重启」「检查前端更新」「环境信息」
@@ -42,7 +42,7 @@ DeepSeek Harness(DSH)的 Windows 桌面壳,基于 **Tauri v2 + React 18 + TypeSc
 - **自动更新带进度**:更新时顶栏名字旁绿色圆环旋转 → 完成对勾 → **自动重启生效**(无需手动重开;更新只在启动时发生,不打断对话);应用每次启动自检 GitHub 最新 Release,更新通道与自动更新开关见更新中心
 - **更新中心**:分别管理 DSH 内核和桌面壳。内核按完整 SemVer 比较运行版本与所选 npm 标签（latest / next / 高级 alpha），避免将较旧的 rc 版误报为更新；降级需要确认，复制命令不执行安装。仅对经过来源验证的应用托管全局 npm 安装提供一键更新，并核验重启后的进程、路径与版本；其他安装来源显示对应操作建议。桌面壳继续提供稳定 / 预发布通道、自动更新开关及完整性校验。
 - **设置中心(环境面板第四标签)**:窗口置顶 / 开机自启(最小化待命) / 关闭按钮行为(隐藏到托盘[默认] 或 直接退出) / 记住上次页签——全部以滑动开关呈现、点击即时生效并跨重启持久化;各子项说明收纳在功能名旁的「?」里,点击弹出气泡详读
-- **外观三档主题**:**跟随系统(默认)/ 深色 / 浅色**——浅色为 Codex 风配色(白底+蓝强调,覆盖标题栏/启动页/环境面板全套);壳界面切换即时生效,内嵌网页在重启应用后跟随
+- **主题模式**:跟随系统 / 深色 / 浅色，桌面外壳即时切换；内嵌聊天的明暗模式重启后同步。
 - **六种界面语言实时切换**:设置 → 外观 → 语言(简体中文/繁體中文/English/日本語/한국어/Русский),整个壳界面与托盘菜单即时换语言、无需重启;**默认「跟随系统」**——启动时按 Windows 显示语言自动选择(简繁分流,未适配语言回退英文),也可手动指定;Rust 侧系统通知(更新流程/下载完成/任务完成)同步六语;新增语言只需一份字典(欢迎提 issue/PR)
 - **缩放与下载**:Ctrl +/-/0 与 Ctrl+滚轮缩放整个界面(焦点在内嵌页也生效);内嵌页面触发的下载(session log 导出等)统一落「下载」文件夹并弹系统通知
 - **桌面快捷方式可配置**:插件随激活创建「DeepSeek Harness」「DeepSeek Harness Web」两个桌面快捷方式;不想要的话在 DSH 插件设置里把 `createShortcut`/`createWebShortcut` 关掉即可(想把快捷方式挪去开始磁贴,先关开关再挪,免得下次激活时在桌面重建)
@@ -82,7 +82,7 @@ dsh plugin --profile web add dsh-desktop-plugin
 
 重启 DSH 后插件自动把 exe 装到 `%LOCALAPPDATA%\Programs\dsh-desktop-windowos\`,并在桌面生成**两个**快捷方式——「DeepSeek Harness」(桌面应用)和「DeepSeek Harness Web」(浏览器打开前端);之后每次激活还会**自动升级** exe 到最新 Release(应用运行中也能安全替换)。对话里说“打开桌面应用”可通过 `desktop_launch` 工具直接拉起(exe 缺失时走**后台任务安装**,完成后自动启动,聊天里可轮询进度)。首次运行 exe 会弹 SmartScreen(未签名),点「更多信息 → 仍要运行」即可。
 
-**插件 npm 与应用是两条独立版本线**(npm 现 1.5.12,应用现 v1.6.52,不一致是**有意设计**)——npm 只在插件代码变更时发布,内容相同的空包只会触发所有用户的插件市场更新提示与重复下载;应用走 GitHub Release 自由前进,桌面端启动时自动把已装插件对齐 npm 最新版(只升不降)。详见 [plugin/README.md](plugin/README.md)。
+**插件 npm 与应用是两条独立版本线**(npm 现 1.5.12,应用现 v1.6.63,不一致是**有意设计**)——npm 只在插件代码变更时发布,内容相同的空包只会触发所有用户的插件市场更新提示与重复下载;应用走 GitHub Release 自由前进,桌面端启动时自动把已装插件对齐 npm 最新版(只升不降)。详见 [plugin/README.md](plugin/README.md)。
 
 **方式二:直接下载 exe**
 
@@ -149,10 +149,10 @@ The default desktop Web shortcut is migrated by app v1.6.52+ on first launch. It
 
 ### Features
 
-- **Zero-setup**: double-click the exe and it starts DSH (`dsh web`); once ready, the window embeds the **native webchat** at `http://127.0.0.1:3080/` in a persistent same-window iframe (no custom chat UI, no reverse proxy); DSH rc.8+ auto-opens a browser on local runs — the shell probes and appends `--no-open` (probe hard-capped at 8 s, so rc.2's non-exiting `--help` can no longer stall startup; zero impact on older versions)
+- **Zero-setup**: starts local DSH and embeds native webchat. Installed candidates get 120 seconds; npx gets 300. Read-only package inspection identifies `--no-open` support without starting a profile.
 - **Custom title bar**: undecorated window with a Comfy-style **capsule control** (whale mark + name + arrow) centered — **click the capsule to open the environment panel** (blue highlight, arrow flips while open); drag/min/max/close are self-drawn, native snap and edge-resize intact
 - **Settings workspace**: a two-column layout with General, Appearance, Environment, Updates and Logs; searchable settings, icon navigation, keyboard controls and responsive layouts. The chat iframe stays mounted while settings are open.
-- **Appearance**: independent light/dark themes and previews, system mode, DSH/Codex presets, custom colors and surface contrast, UI/code fonts and sizes, pointer cursors, translucent sidebar, and theme copy/import/reset. Language now lives in General with system mode and six locales. Custom colors and fonts affect the desktop shell; chat light/dark mode follows after an app restart.
+- **Appearance**: independent light/dark themes and previews, system mode, DSH, Ocean, Forest, Violet, Amber and Rose presets, custom background/text/surface/frame colors and surface contrast, UI/code fonts and sizes, pointer cursors, translucent sidebar, and theme copy/paste/import/reset. Language now lives in General with system mode and six locales. Custom colors and fonts affect the desktop shell; chat light/dark mode follows after an app restart.
 - **ComfyUI-style logging**: dsh.log records only shell events (startup/supervision/updates; DSH's own output is not logged), timestamped `[INFO/WARN/ERROR]` rows with level coloring, rotated per session; a 查看日志 link on the boot page streams what the terminal is doing
 - **Diagnostic bundle**: 更多 → 导出诊断信息 packs env facts + the session log into markdown on your clipboard — paste it to any AI instead of hunting through the install
 - **Tray-resident**: closing the window (X) only hides it to the tray while DSH keeps running; **double-click the tray icon** or **right-click → Open DSH** brings the window back; the menu also has "重启 dsh web(后端)" (backend restart), "前后端重启" (full restart — shell and backend both, however the backend was started) and the update check
@@ -190,7 +190,7 @@ Not bundled with the exe:
 dsh plugin --profile web add dsh-desktop-plugin
 ```
 
-After restarting DSH, the plugin auto-installs the exe into `%LOCALAPPDATA%\Programs\dsh-desktop-windowos` and creates **two** desktop shortcuts — "DeepSeek Harness" (the desktop app) and "DeepSeek Harness Web" (the web UI in a browser); each later activation also **auto-updates** the exe to the latest Release (safe even while the app is running). Saying "open the desktop app" in chat launches it via the `desktop_launch` tool (a missing exe installs as a **background job** that auto-launches when done, with progress pollable in chat). First run of the unsigned exe shows SmartScreen — click "More info → Run anyway". **The plugin npm and the app run on two independent version lines** (npm currently 1.5.12, app currently v1.6.52 — the mismatch is deliberate): npm publishes only when the plugin code changes, since identical empty packages would just trigger update prompts and re-downloads for every plugin user; the app advances freely via GitHub Releases, and the desktop app aligns installed plugins to npm latest (upgrade only). See [plugin/README.md](plugin/README.md).
+After restarting DSH, the plugin auto-installs the exe into `%LOCALAPPDATA%\Programs\dsh-desktop-windowos` and creates **two** desktop shortcuts — "DeepSeek Harness" (the desktop app) and "DeepSeek Harness Web" (the web UI in a browser); each later activation also **auto-updates** the exe to the latest Release (safe even while the app is running). Saying "open the desktop app" in chat launches it via the `desktop_launch` tool (a missing exe installs as a **background job** that auto-launches when done, with progress pollable in chat). First run of the unsigned exe shows SmartScreen — click "More info → Run anyway". **The plugin npm and the app run on two independent version lines** (npm currently 1.5.12, app currently v1.6.63 — the mismatch is deliberate): npm publishes only when the plugin code changes, since identical empty packages would just trigger update prompts and re-downloads for every plugin user; the app advances freely via GitHub Releases, and the desktop app aligns installed plugins to npm latest (upgrade only). See [plugin/README.md](plugin/README.md).
 
 **Option B: download the exe directly**
 

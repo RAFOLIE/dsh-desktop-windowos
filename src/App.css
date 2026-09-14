@@ -21,8 +21,8 @@ body,
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #0f1115;
-  color: #e6e6e6;
+  background: var(--ep-bg);
+  color: var(--ep-text);
   overflow: hidden;
 }
 
@@ -40,7 +40,7 @@ body,
   width: 100%;
   height: 100%;
   border: none;
-  background: #0f1115;
+  background: var(--ep-bg);
 }
 
 /* Thin explainer bar when the attached backend could not be authenticated
@@ -56,7 +56,7 @@ body,
   box-sizing: border-box;
   font-size: calc(var(--ui-size, 14px) * 0.89286);
   line-height: 1.5;
-  color: #f5d38a;
+  color: var(--status-warn);
   background: rgba(64, 48, 12, 0.92);
   border-bottom: 1px solid rgba(245, 211, 138, 0.35);
   backdrop-filter: blur(6px);
@@ -68,7 +68,9 @@ body,
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0f1115;
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--ep-bg);
 }
 
 .state {
@@ -77,10 +79,15 @@ body,
   align-items: center;
   gap: 16px;
   padding: 32px;
-  border-radius: 12px;
-  background: #171a21;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-  min-width: 280px;
+  border-radius: 18px;
+  background: var(--ep-card);
+  border: 1px solid var(--ep-line);
+  box-shadow: none;
+  min-width: min(280px, 100%);
+  max-width: 640px;
+  max-height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
 }
 
 .text {
@@ -88,13 +95,13 @@ body,
 }
 
 .text.error {
-  color: #ff6b6b;
+  color: var(--status-error);
   font-weight: 600;
 }
 
 .detail {
   font-size: calc(var(--ui-size, 14px) * 0.92857);
-  color: #9aa0a6;
+  color: var(--ep-muted);
   max-width: 320px;
   text-align: center;
   word-break: break-word;
@@ -103,15 +110,15 @@ body,
 button {
   padding: 8px 20px;
   font-size: calc(var(--ui-size, 14px) * 1.0);
-  border: 1px solid #2c3140;
+  border: 1px solid var(--ep-line);
   border-radius: 8px;
-  background: #1f6feb;
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
   cursor: pointer;
 }
 
 button:hover {
-  background: #388bfd;
+  background: var(--accent);
 }
 
 button:disabled {
@@ -121,20 +128,20 @@ button:disabled {
 
 button:focus-visible,
 input:focus-visible {
-  outline: 2px solid #4c9aff;
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
 /* Secondary action in the notfound chooser (alternative npm registry). */
 .btn-secondary {
   background: transparent;
-  border: 1px solid #2c3140;
-  color: #9aa0a6;
+  border: 1px solid var(--ep-line);
+  color: var(--ep-muted);
 }
 
 .btn-secondary:hover {
-  background: #171a21;
-  color: #e6e6e6;
+  background: var(--ep-card);
+  color: var(--ep-text);
 }
 
 .path-input {
@@ -142,22 +149,22 @@ input:focus-visible {
   box-sizing: border-box;
   padding: 8px 12px;
   font-size: calc(var(--ui-size, 14px) * 0.92857);
-  border: 1px solid #2c3140;
+  border: 1px solid var(--ep-line);
   border-radius: 8px;
-  background: #0f1115;
-  color: #e6e6e6;
+  background: var(--ep-bg);
+  color: var(--ep-text);
 }
 
 .path-input:focus {
   outline: none;
-  border-color: #1f6feb;
+  border-color: var(--accent);
 }
 
 .spinner {
   width: 28px;
   height: 28px;
-  border: 3px solid #2c3140;
-  border-top-color: #58a6ff;
+  border: 3px solid var(--ep-line);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -177,8 +184,8 @@ input:focus-visible {
   align-items: center;
   height: 40px;
   flex: none;
-  background: #161a22;
-  border-bottom: 1px solid #21262d;
+  background: var(--ep-card);
+  border-bottom: 1px solid var(--ep-line);
   user-select: none;
 }
 
@@ -204,9 +211,9 @@ input:focus-visible {
   gap: 10px;
   padding: 7px 16px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #e7eaf0;
+  background: var(--ep-line);
+  border: 1px solid var(--ep-line);
+  color: var(--ep-text);
   font-size: calc(var(--ui-size, 14px) * 0.92857);
   font-weight: 600;
   letter-spacing: 0.2px;
@@ -215,14 +222,14 @@ input:focus-visible {
 }
 
 .tb-pill:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(76, 154, 255, 0.5);
+  background: var(--ep-line);
+  border-color: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .tb-pill.open {
-  background: rgba(76, 154, 255, 0.14);
-  border-color: #4c9aff;
-  color: #cfe2ff;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .tb-pill-icon {
@@ -238,13 +245,13 @@ input:focus-visible {
 
 .tb-pill-chevron {
   flex: none;
-  color: #969dab;
+  color: var(--ep-muted);
   transition: transform 0.15s ease, color 0.15s ease;
 }
 
 .tb-pill.open .tb-pill-chevron {
   transform: rotate(180deg);
-  color: #4c9aff;
+  color: var(--accent);
 }
 
 /* transient update indicator rides inside the pill */
@@ -262,7 +269,7 @@ input:focus-visible {
   border: none;
   border-radius: 0;
   background: transparent;
-  color: #9aa0a6;
+  color: var(--ep-muted);
   cursor: default;
 }
 
@@ -272,8 +279,8 @@ input:focus-visible {
 }
 
 .tb-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #e6e6e6;
+  background: var(--ep-line);
+  color: var(--ep-text);
 }
 
 .tb-close:hover {
@@ -288,13 +295,13 @@ input:focus-visible {
   font-size: calc(var(--ui-size, 14px) * 0.85714);
   background: transparent;
   border: none;
-  color: #8b949e;
+  color: var(--ep-muted);
   text-decoration: underline dotted;
 }
 
 .boot-log-link:hover {
   background: transparent;
-  color: #58a6ff;
+  color: var(--accent);
 }
 
 /* Update spinner: a green ring with a small gap, rotating. */
@@ -306,7 +313,7 @@ input:focus-visible {
 
 .update-ring circle {
   fill: none;
-  stroke: #3fb950;
+  stroke: var(--status-ok);
   stroke-width: 2.4;
   stroke-linecap: round;
   stroke-dasharray: 30 8;
@@ -317,7 +324,7 @@ input:focus-visible {
   width: 14px;
   height: 14px;
   fill: none;
-  stroke: #3fb950;
+  stroke: var(--status-ok);
   stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -344,37 +351,10 @@ input:focus-visible {
   }
 }
 
-/* --- Environment-manager dialog (spec: dark, blue-accent, four zones) --- */
+/* Settings workspace structural primitives; colors share appearance tokens. */
 
-.ep-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
-}
-
-.ep-dialog {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  /* inline width wins (user-resized, persisted); these are fallback + guards */
-  width: min(1150px, calc(100vw - 96px));
-  max-width: calc(100vw - 32px);
-  height: calc(100vh - 80px);
-  max-height: 1080px;
-  min-height: 600px;
-  min-width: min(720px, calc(100vw - 32px));
-  background: #151821;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
-  overflow: hidden;
-}
+.ep-backdrop { position:absolute; inset:0; display:flex; }
+.ep-dialog { position:relative; overflow:hidden; }
 
 /* 1. Search bar */
 .ep-search {
@@ -384,13 +364,13 @@ input:focus-visible {
   height: 64px;
   flex: none;
   padding: 0 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid var(--ep-line);
 }
 
 .ep-search-icon {
   width: 18px;
   height: 18px;
-  color: #969dab;
+  color: var(--ep-muted);
   flex: none;
 }
 
@@ -399,12 +379,12 @@ input:focus-visible {
   min-width: 0;
   border: none;
   background: transparent;
-  color: #e7eaf0;
+  color: var(--ep-text);
   font-size: calc(var(--ui-size, 14px) * 1.28571);
 }
 
 .ep-search input::placeholder {
-  color: #5c6370;
+  color: var(--ep-muted);
 }
 
 .ep-search input:focus {
@@ -427,19 +407,19 @@ input:focus-visible {
   font-size: calc(var(--ui-size, 14px) * 0.92857);
   border-radius: 999px;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #969dab;
+  border: 1px solid var(--ep-line);
+  color: var(--ep-muted);
 }
 
 .ep-pill:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: #e7eaf0;
+  background: var(--ep-line);
+  color: var(--ep-text);
 }
 
 .ep-pill.active {
-  border-color: #4c9aff;
-  background: rgba(76, 154, 255, 0.14);
-  color: #4c9aff;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
 }
 
 .ep-pill-sm {
@@ -449,7 +429,7 @@ input:focus-visible {
 }
 
 .ep-pill-sm.active {
-  color: #4c9aff;
+  color: var(--accent);
 }
 
 /* Codex-style slide switch (pref rows / auto-update). Full-state lock:
@@ -462,7 +442,7 @@ input:focus-visible {
   padding: 0;
   border: none;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--ep-line);
   transition: background 0.18s ease;
 }
 
@@ -480,12 +460,12 @@ input:focus-visible {
 }
 
 .ep-switch:hover {
-  background: rgba(255, 255, 255, 0.24);
+  background: var(--ep-line);
 }
 
 .ep-switch.on,
 .ep-switch.on:hover {
-  background: #4c9aff;
+  background: var(--accent);
 }
 
 .ep-switch.on::after {
@@ -507,9 +487,9 @@ input:focus-visible {
   width: 15px;
   height: 15px;
   margin-left: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid var(--ep-line);
   border-radius: 50%;
-  color: #8b949e;
+  color: var(--ep-muted);
   font-size: calc(var(--ui-size, 14px) * 0.71429);
   font-weight: 600;
   line-height: 1;
@@ -519,8 +499,8 @@ input:focus-visible {
 }
 
 .ep-help:hover {
-  border-color: #4c9aff;
-  color: #4c9aff;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .ep-help-wrap {
@@ -530,9 +510,9 @@ input:focus-visible {
 }
 
 .ep-help.open {
-  border-color: #4c9aff;
-  color: #4c9aff;
-  background: rgba(76, 154, 255, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 /* Click-toggled help popover (fixed portal, never clipped by cards). */
@@ -541,10 +521,10 @@ input:focus-visible {
   max-width: 320px;
   padding: 8px 12px;
   border-radius: 8px;
-  background: #1b1f2a;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--ep-card);
+  border: 1px solid var(--ep-line);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  color: #e7eaf0;
+  color: var(--ep-text);
   font-size: calc(var(--ui-size, 14px) * 0.85714);
   font-weight: 400;
   line-height: 1.5;
@@ -561,13 +541,13 @@ input:focus-visible {
   font-size: calc(var(--ui-size, 14px) * 0.92857);
   border-radius: 8px;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #969dab;
+  border: 1px solid var(--ep-line);
+  color: var(--ep-muted);
 }
 
 .ep-tool-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
-  color: #e7eaf0;
+  background: var(--ep-line);
+  color: var(--ep-text);
 }
 
 /* Detail column */
@@ -587,7 +567,7 @@ input:focus-visible {
   height: 56px;
   flex: none;
   padding: 0 32px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid var(--ep-line);
 }
 
 /* Global `button` styles bleed into these pills; lock the surface on every
@@ -607,17 +587,17 @@ input:focus-visible {
   border: none;
   border-bottom: 2px solid transparent;
   border-radius: 0;
-  color: #969dab;
+  color: var(--ep-muted);
 }
 
 .ep-tab:hover:not(.active) {
-  background: rgba(255, 255, 255, 0.04);
-  color: #e7eaf0;
+  background: var(--ep-line);
+  color: var(--ep-text);
 }
 
 .ep-tab.active {
-  color: #4c9aff;
-  border-bottom-color: #4c9aff;
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 .ep-content {
@@ -645,12 +625,12 @@ input:focus-visible {
 }
 
 .ep-dot.ok {
-  background: #43c98b;
+  background: var(--status-ok);
   box-shadow: 0 0 6px #43c98b88;
 }
 
 .ep-dot.warn {
-  background: #f2a93b;
+  background: var(--status-warn);
   box-shadow: 0 0 6px #f2a93b88;
 }
 
@@ -662,15 +642,15 @@ input:focus-visible {
 .ep-group-title {
   font-size: calc(var(--ui-size, 14px) * 0.92857);
   font-weight: 600;
-  color: #969dab;
+  color: var(--ep-muted);
   letter-spacing: 0.4px;
   margin-bottom: 12px;
 }
 
 .ep-card {
   width: 100%;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--ep-line);
+  border: 1px solid var(--ep-line);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -686,17 +666,17 @@ input:focus-visible {
 }
 
 .ep-row + .ep-row {
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid var(--ep-line);
 }
 
 .ep-row-label {
   font-size: calc(var(--ui-size, 14px) * 0.92857);
-  color: #969dab;
+  color: var(--ep-muted);
 }
 
 .ep-row-value {
   font-size: calc(var(--ui-size, 14px) * 1.0);
-  color: #e7eaf0;
+  color: var(--ep-text);
   overflow-wrap: anywhere;
   user-select: text;
 }
@@ -707,7 +687,7 @@ input:focus-visible {
 }
 
 .ep-row-value.absent {
-  color: #5c6370;
+  color: var(--ep-muted);
 }
 
 .ep-row-value {
@@ -730,7 +710,7 @@ input:focus-visible {
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: #969dab;
+  color: var(--ep-muted);
 }
 
 .ep-icon-btn svg {
@@ -739,9 +719,9 @@ input:focus-visible {
 }
 
 .ep-icon-btn:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.05);
-  color: #e7eaf0;
+  border-color: var(--ep-line);
+  background: var(--ep-line);
+  color: var(--ep-text);
 }
 
 .ep-status {
@@ -752,11 +732,11 @@ input:focus-visible {
 }
 
 .ep-status.ok {
-  color: #43c98b;
+  color: var(--status-ok);
 }
 
 .ep-status.warn {
-  color: #f2a93b;
+  color: var(--status-warn);
 }
 
 .ep-loading {
@@ -765,7 +745,7 @@ input:focus-visible {
   align-items: center;
   gap: 14px;
   padding: 48px 0;
-  color: #969dab;
+  color: var(--ep-muted);
   font-size: calc(var(--ui-size, 14px) * 1.0);
 }
 
@@ -778,7 +758,7 @@ input:focus-visible {
   border: 1px solid #ef5b6744;
   border-radius: 10px;
   background: #ef5b6714;
-  color: #ef5b67;
+  color: var(--status-error);
   font-size: calc(var(--ui-size, 14px) * 0.92857);
 }
 
@@ -807,10 +787,10 @@ input:focus-visible {
   min-height: 0;
   margin: 0;
   padding: 12px 14px;
-  background: #0d1017;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--ep-bg);
+  border: 1px solid var(--ep-line);
   border-radius: 8px;
-  color: #9aa0a6;
+  color: var(--ep-muted);
   font-family: Consolas, "Cascadia Mono", monospace;
   font-size: calc(var(--ui-size, 14px) * 0.85714);
   line-height: 1.55;
@@ -821,19 +801,19 @@ input:focus-visible {
 
 /* Level colors on the shell's timestamped rows + session banners. */
 .log-banner {
-  color: #58a6ff;
+  color: var(--accent);
 }
 
 .log-info {
-  color: #9aa0a6;
+  color: var(--ep-muted);
 }
 
 .log-warn {
-  color: #d29922;
+  color: var(--status-warn);
 }
 
 .log-error {
-  color: #f85149;
+  color: var(--status-error);
 }
 
 /* 4. Bottom action bar (right-aligned actions) */
@@ -845,7 +825,7 @@ input:focus-visible {
   height: 72px;
   flex: none;
   padding: 0 32px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid var(--ep-line);
 }
 
 .ep-secondary {
@@ -854,12 +834,12 @@ input:focus-visible {
   font-size: calc(var(--ui-size, 14px) * 0.92857);
   border-radius: 8px;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #c7ccd6;
+  border: 1px solid var(--ep-line);
+  color: var(--ep-text);
 }
 
 .ep-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--ep-line);
 }
 
 .ep-primary {
@@ -867,13 +847,13 @@ input:focus-visible {
   padding: 0 22px;
   font-size: calc(var(--ui-size, 14px) * 0.92857);
   border-radius: 8px;
-  background: #4c9aff;
-  border: 1px solid #4c9aff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
   color: #fff;
 }
 
 .ep-primary:hover {
-  background: #6aabff;
+  background: var(--accent);
 }
 
 .ep-more {
@@ -886,8 +866,8 @@ input:focus-visible {
   bottom: 44px;
   min-width: 200px;
   padding: 6px;
-  background: #1b1f2a;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--ep-card);
+  border: 1px solid var(--ep-line);
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   z-index: 5;
@@ -902,12 +882,12 @@ input:focus-visible {
   background: transparent;
   border: none;
   border-radius: 6px;
-  color: #c7ccd6;
+  color: var(--ep-text);
 }
 
 .ep-menu button:hover {
-  background: rgba(76, 154, 255, 0.14);
-  color: #e7eaf0;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--ep-text);
 }
 
 /* Toast */
@@ -917,10 +897,10 @@ input:focus-visible {
   bottom: 84px;
   padding: 8px 16px;
   border-radius: 8px;
-  background: #1b1f2a;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--ep-card);
+  border: 1px solid var(--ep-line);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  color: #e7eaf0;
+  color: var(--ep-text);
   font-size: calc(var(--ui-size, 14px) * 0.92857);
   z-index: 6;
   pointer-events: none;
@@ -928,35 +908,8 @@ input:focus-visible {
 
 /* --- Responsive --- */
 
-/* Edge resize handles for the dialog width (hidden on narrow screens) */
-.ep-resize-handle {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 10px;
-  cursor: ew-resize;
-  z-index: 40;
-  touch-action: none;
-}
-
-.ep-resize-handle.left {
-  left: 0;
-}
-
-.ep-resize-handle.right {
-  right: 0;
-}
-
 @media (max-width: 899px) {
-  .ep-backdrop {
-    padding: 16px;
-  }
-
-  .ep-resize-handle {
-    display: none;
-  }
-
-  .ep-row {
+.ep-row {
     grid-template-columns: minmax(0, 1fr);
     row-gap: 6px;
   }
@@ -990,12 +943,12 @@ input:focus-visible {
 
 .ep-badge.ok {
   border-color: #43c98b66;
-  color: #43c98b;
+  color: var(--status-ok);
 }
 
 .ep-badge.warn {
   border-color: #f2a93b66;
-  color: #f2a93b;
+  color: var(--status-warn);
 }
 
 /* Channel badge leads the value: 稳定版(ok) / 预览版(warn). */
@@ -1018,7 +971,7 @@ input:focus-visible {
   /* aligns with the select/button inner text */
   margin-left: 16px;
   font-size: calc(var(--ui-size, 14px) * 0.85714);
-  color: #8b949e;
+  color: var(--ep-muted);
 }
 
 /* --- 更新 tab: Comfy-style heading + channel selector --- */
@@ -1026,7 +979,7 @@ input:focus-visible {
 .ep-version-heading {
   font-size: calc(var(--ui-size, 14px) * 1.57143);
   font-weight: 700;
-  color: #e7eaf0;
+  color: var(--ep-text);
   margin-bottom: 12px;
   display: flex;
   align-items: center;
@@ -1034,7 +987,7 @@ input:focus-visible {
 }
 
 .ep-version-num {
-  color: #4c9aff;
+  color: var(--accent);
 }
 
 .ep-channel-card {
@@ -1049,7 +1002,7 @@ input:focus-visible {
   padding: 14px 18px 10px;
   font-size: calc(var(--ui-size, 14px) * 0.92857);
   font-weight: 600;
-  color: #969dab;
+  color: var(--ep-muted);
 }
 
 .ep-select-wrap {
@@ -1066,18 +1019,18 @@ input:focus-visible {
   padding: 0 16px;
   font-size: calc(var(--ui-size, 14px) * 1.0);
   text-align: left;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--ep-line);
+  border: 1px solid var(--ep-line);
   border-radius: 8px;
-  color: #e7eaf0;
+  color: var(--ep-text);
 }
 
 .ep-select:hover:not(:disabled) {
-  border-color: rgba(76, 154, 255, 0.5);
+  border-color: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .ep-select.open {
-  border-color: #4c9aff;
+  border-color: var(--accent);
 }
 
 .ep-select svg,
@@ -1086,7 +1039,7 @@ input:focus-visible {
   height: 12px;
   flex: none;
   flex: none;
-  color: #969dab;
+  color: var(--ep-muted);
   transition: transform 0.15s ease;
 }
 
@@ -1103,8 +1056,8 @@ input:focus-visible {
   max-height: 280px;
   overflow-y: auto;
   padding: 6px;
-  background: #1b1f2a;
-  border: 1px solid rgba(76, 154, 255, 0.35);
+  background: var(--ep-card);
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
@@ -1114,7 +1067,7 @@ input:focus-visible {
 }
 
 .ep-select-menu::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--ep-line);
   border-radius: 4px;
 }
 
@@ -1129,26 +1082,26 @@ input:focus-visible {
   padding: 8px 12px;
   box-sizing: border-box;
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--ep-line);
   border-radius: 10px 10px 0 0;
-  background: #1b1f2a;
-  color: #e7eaf0;
+  background: var(--ep-card);
+  color: var(--ep-text);
   font-size: calc(var(--ui-size, 14px) * 0.92857);
   outline: none;
 }
 
 .ep-select-search::placeholder {
-  color: #5c6370;
+  color: var(--ep-muted);
 }
 
 .ep-select-search:focus {
-  background: #20242f;
+  background: var(--ep-hover);
 }
 
 .ep-select-empty {
   padding: 10px 14px;
   font-size: calc(var(--ui-size, 14px) * 0.85714);
-  color: #5c6370;
+  color: var(--ep-muted);
 }
 
 .ep-select-option {
@@ -1166,24 +1119,24 @@ input:focus-visible {
 }
 
 .ep-select-option:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--ep-line);
 }
 
 .ep-select-option.selected {
-  background: rgba(76, 154, 255, 0.12);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .ep-select-title {
   display: block;
   font-size: calc(var(--ui-size, 14px) * 1.0);
-  color: #e7eaf0;
+  color: var(--ep-text);
 }
 
 .ep-select-desc {
   display: block;
   margin-top: 2px;
   font-size: calc(var(--ui-size, 14px) * 0.85714);
-  color: #969dab;
+  color: var(--ep-muted);
 }
 
 .ep-select-check {
@@ -1199,7 +1152,7 @@ input:focus-visible {
   /* aligns with the select button's inner text (16px padding) */
   margin: 10px 16px 0;
   font-size: calc(var(--ui-size, 14px) * 0.92857);
-  color: #969dab;
+  color: var(--ep-muted);
 }
 
 /* Split 重启 button: main action + caret revealing 前后端重启 */
@@ -1218,7 +1171,7 @@ input:focus-visible {
   padding: 0;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  border-left: 1px solid var(--ep-line);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1244,8 +1197,8 @@ input:focus-visible {
   gap: 2px;
   padding: 3px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--ep-line);
+  border: 1px solid var(--ep-line);
 }
 
 .ep-seg-btn {
@@ -1255,372 +1208,16 @@ input:focus-visible {
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: #969dab;
+  color: var(--ep-muted);
   white-space: nowrap;
 }
 
 .ep-seg-btn:hover:not(.active):not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
-  color: #e7eaf0;
+  background: var(--ep-line);
+  color: var(--ep-text);
 }
 
 .ep-seg-btn.active {
-  background: rgba(76, 154, 255, 0.2);
-  color: #8db9ff;
-}
-
-/* --- 浅色皮肤（Codex light）---------------------------------------
-   html[data-theme="light"] 由 theme.ts 按 settings.json 的 uiTheme 写入；
-   system 档经 matchMedia 实时解析。只覆盖色彩类属性，布局零改动。 */
-
-[data-theme="light"] .shell,
-[data-theme="light"] .webchat,
-[data-theme="light"] .boot-wrap {
-  background: #ffffff;
-  color: #191b1f;
-}
-
-[data-theme="light"] .state {
-  background: #ffffff;
-  border: 1px solid #e6e6e8;
-  box-shadow: 0 8px 32px rgba(16, 24, 40, 0.08);
-}
-
-[data-theme="light"] .auth-hint-bar {
-  color: #7a5b0f;
-  background: rgba(255, 244, 214, 0.95);
-  border-bottom: 1px solid rgba(180, 140, 40, 0.35);
-}
-
-[data-theme="light"] .text.error {
-  color: #cf222e;
-}
-
-[data-theme="light"] .detail {
-  color: #656d76;
-}
-
-[data-theme="light"] .btn-secondary {
-  border-color: #d0d4dc;
-  background: #ffffff;
-  color: #5a6070;
-}
-
-[data-theme="light"] .btn-secondary:hover {
-  background: #f2f4f7;
-  border-color: #c3c8d1;
-  color: #191b1f;
-}
-
-[data-theme="light"] .path-input {
-  background: #ffffff;
-  border-color: #d0d4dc;
-  color: #191b1f;
-}
-
-[data-theme="light"] .spinner {
-  border-color: #d7dbe2;
-  border-top-color: #2b6fe0;
-}
-
-[data-theme="light"] .boot-log-link {
-  color: #2b6fe0;
-}
-
-[data-theme="light"] .titlebar {
-  background: #ffffff;
-  border-bottom-color: #e8eaee;
-}
-
-[data-theme="light"] .tb-pill {
-  background: #f2f3f5;
-  border-color: #e2e4e9;
-  color: #1c2026;
-}
-
-[data-theme="light"] .tb-pill:hover {
-  background: #eaecf0;
-  border-color: #b9ccf5;
-}
-
-[data-theme="light"] .tb-pill.open {
-  background: #eaf1fe;
-  border-color: #7aa7f8;
-  color: #1d4fc0;
-}
-
-[data-theme="light"] .tb-pill-chevron {
-  color: #6a7280;
-}
-
-[data-theme="light"] .tb-btn {
-  color: #6a7280;
-}
-
-[data-theme="light"] .tb-btn:hover {
-  background: rgba(15, 23, 42, 0.06);
-  color: #191b1f;
-}
-
-[data-theme="light"] .ep-backdrop {
-  background: rgba(15, 23, 42, 0.32);
-}
-
-[data-theme="light"] .ep-dialog {
-  background: #ffffff;
-  border-color: #e6e6e8;
-  box-shadow: 0 24px 80px rgba(16, 24, 40, 0.18);
-}
-
-[data-theme="light"] .ep-search,
-[data-theme="light"] .ep-nav,
-[data-theme="light"] .ep-bottom {
-  border-color: #ececef;
-}
-
-[data-theme="light"] .ep-search-icon,
-[data-theme="light"] .ep-select-desc-below {
-  color: #6a7280;
-}
-
-[data-theme="light"] .ep-search input {
-  color: #191b1f;
-}
-
-[data-theme="light"] .ep-search input::placeholder {
-  color: #a0a6b1;
-}
-
-[data-theme="light"] .ep-pill,
-[data-theme="light"] .ep-tool-btn {
-  border-color: #d5d8de;
-  color: #5a6070;
-}
-
-[data-theme="light"] .ep-pill:hover,
-[data-theme="light"] .ep-tool-btn:hover:not(:disabled) {
-  background: #f2f4f7;
-  color: #191b1f;
-}
-
-[data-theme="light"] .ep-pill.active,
-[data-theme="light"] .ep-pill-sm.active {
-  border-color: #7aa7f8;
-  background: #eaf1fe;
-  color: #2b6fe0;
-}
-
-[data-theme="light"] .ep-switch {
-  background: #d8dade;
-}
-
-[data-theme="light"] .ep-switch:hover {
-  background: #cdd0d6;
-}
-
-[data-theme="light"] .ep-switch.on,
-[data-theme="light"] .ep-switch.on:hover {
-  background: #3b82f6;
-}
-
-[data-theme="light"] .ep-switch::after {
-  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.18);
-}
-
-[data-theme="light"] .ep-help {
-  border-color: rgba(15, 23, 42, 0.28);
-  color: #6a7280;
-}
-
-[data-theme="light"] .ep-help:hover {
-  border-color: #2b6fe0;
-  color: #2b6fe0;
-}
-
-[data-theme="light"] .ep-help.open {
-  border-color: #2b6fe0;
-  color: #2b6fe0;
-  background: #eaf1fe;
-}
-
-[data-theme="light"] .ep-help-pop {
-  background: #ffffff;
-  border-color: #e6e6e8;
-  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.14);
-  color: #191b1f;
-}
-
-[data-theme="light"] .ep-tab {
-  color: #6a7280;
-}
-
-[data-theme="light"] .ep-tab:hover:not(.active) {
-  background: #f2f4f7;
-  color: #191b1f;
-}
-
-[data-theme="light"] .ep-tab.active {
-  color: #2b6fe0;
-  border-bottom-color: #2b6fe0;
-}
-
-[data-theme="light"] .ep-group-title,
-[data-theme="light"] .ep-row-label,
-[data-theme="light"] .ep-channel-title {
-  color: #6a7280;
-}
-
-[data-theme="light"] .ep-card {
-  background: #ffffff;
-  border-color: #e6e6e8;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
-}
-
-[data-theme="light"] .ep-row + .ep-row {
-  border-top-color: #ececef;
-}
-
-[data-theme="light"] .ep-row-value,
-[data-theme="light"] .ep-version-heading,
-[data-theme="light"] .ep-select-title {
-  color: #191b1f;
-}
-
-[data-theme="light"] .ep-row-value.absent {
-  color: #a0a6b1;
-}
-
-[data-theme="light"] .ep-icon-btn:hover:not(:disabled) {
-  border-color: #d5d8de;
-  background: #f2f4f7;
-  color: #191b1f;
-}
-
-[data-theme="light"] .ep-error {
-  border-color: rgba(207, 34, 46, 0.35);
-  background: rgba(207, 34, 46, 0.05);
-  color: #cf222e;
-}
-
-/* Log console stays light too — GitHub-light level palette. */
-[data-theme="light"] .ep-log-console {
-  background: #fafafa;
-  border-color: #e6e6e8;
-  color: #57606a;
-}
-
-[data-theme="light"] .log-banner {
-  color: #0550ae;
-}
-
-[data-theme="light"] .log-info {
-  color: #57606a;
-}
-
-[data-theme="light"] .log-warn {
-  color: #9a6700;
-}
-
-[data-theme="light"] .log-error {
-  color: #cf222e;
-}
-
-[data-theme="light"] .ep-secondary {
-  border-color: #d5d8de;
-  color: #454b56;
-}
-
-[data-theme="light"] .ep-secondary:hover:not(:disabled) {
-  background: #f2f4f7;
-}
-
-[data-theme="light"] .ep-primary {
-  background: #2b6fe0;
-  border-color: #2b6fe0;
-}
-
-[data-theme="light"] .ep-primary:hover {
-  background: #2563d6;
-  border-color: #2563d6;
-}
-
-[data-theme="light"] .ep-menu,
-[data-theme="light"] .ep-toast,
-[data-theme="light"] .ep-select-menu {
-  background: #ffffff;
-  border-color: #e6e6e8;
-  box-shadow: 0 12px 40px rgba(16, 24, 40, 0.14);
-}
-
-[data-theme="light"] .ep-menu button {
-  color: #33383f;
-}
-
-[data-theme="light"] .ep-menu button:hover {
-  background: #eaf1fe;
-  color: #191b1f;
-}
-
-[data-theme="light"] .ep-toast {
-  color: #191b1f;
-}
-
-[data-theme="light"] .ep-badge.ok {
-  border-color: rgba(26, 127, 55, 0.4);
-  color: #1a7f37;
-}
-
-[data-theme="light"] .ep-badge.warn {
-  border-color: rgba(154, 103, 0, 0.4);
-  color: #9a6700;
-}
-
-[data-theme="light"] .ep-hint-inline,
-[data-theme="light"] .ep-select-desc {
-  color: #6a7280;
-}
-
-[data-theme="light"] .ep-version-num {
-  color: #2b6fe0;
-}
-
-[data-theme="light"] .ep-select {
-  background: #fafbfc;
-  border-color: #d5d8de;
-  color: #191b1f;
-}
-
-[data-theme="light"] .ep-select svg,
-[data-theme="light"] .ep-select svg * {
-  color: #6a7280;
-}
-
-[data-theme="light"] .ep-select-menu::-webkit-scrollbar-thumb {
-  background: #d4d6db;
-}
-
-[data-theme="light"] .ep-select-option:hover {
-  background: #f2f4f7;
-}
-
-[data-theme="light"] .ep-select-option.selected {
-  background: #eaf1fe;
-}
-
-[data-theme="light"] .ep-select-search {
-  background: #ffffff;
-  border-bottom-color: #e6e6e8;
-  color: #191b1f;
-}
-
-[data-theme="light"] .ep-select-search::placeholder {
-  color: #a0a6b1;
-}
-
-[data-theme="light"] .ep-select-search:focus {
-  background: #f7f8fa;
-}
-
-[data-theme="light"] .ep-select-empty {
-  color: #a0a6b1;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
 }

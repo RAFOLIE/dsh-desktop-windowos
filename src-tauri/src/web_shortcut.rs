@@ -22,14 +22,19 @@ pub fn open(app: AppHandle) {
         impl Drop for Guard { fn drop(&mut self) { OPENING.store(false, Ordering::SeqCst); } }
         let _guard = Guard;
         report(&app, "waiting");
-        let deadline = Instant::now() + Duration::from_secs(120);
-        while !crate::dsh::probe_ready_once() || crate::backend_update::busy() {
-            if Instant::now() >= deadline {
-                report(&app, "timeout");
-                crate::show_main_window(&app);
-                return;
+        let started = Instant::now();
+        loop {
+            use crate::startup_policy::{web_wait, WebWait};
+            let active = crate::dsh::startup_active() || crate::backend_update::busy();
+            match web_wait(crate::dsh::probe_ready_once(), active, crate::dsh::startup_terminal(), started.elapsed()) {
+                WebWait::Open => break,
+                WebWait::Waiting => std::thread::sleep(Duration::from_millis(500)),
+                verdict => {
+                    report(&app, if verdict == WebWait::Failed { "failed" } else { "timeout" });
+                    crate::show_main_window(&app);
+                    return;
+                }
             }
-            std::thread::sleep(Duration::from_millis(500));
         }
         match crate::dsh::external_browser_url() {
             Ok(url) => {
