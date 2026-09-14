@@ -2379,6 +2379,54 @@ pub fn webchat_auth_flow(app: &AppHandle) -> String {
     plain
 }
 
+/// Default-browser handoff must use the process launch URL, not the plain URL
+/// returned after planting a cookie in the separate embedded WebView2 profile.
+pub(crate) fn external_browser_url() -> Result<String, &'static str> {
+    let plain = format!("{DSH_ORIGIN}/");
+    let (status, _) = http_get_no_redirect(&plain);
+    if status == 200 { return Ok(plain); }
+    if status != 401 { return Err("failed"); }
+    let token = wait_launch_token(Duration::from_secs(6)).or_else(browser_session_token).ok_or("auth")?;
+    browser_handoff(&plain, &token, |url| http_get_no_redirect(url).0)
+}
+
+fn browser_handoff(plain: &str, token: &str, probe: impl FnOnce(&str) -> u16) -> Result<String, &'static str> {
+    let mut url = tauri::Url::parse(&plain).map_err(|_| "failed")?;
+    url.query_pairs_mut().append_pair("token", token);
+    let result = url.to_string();
+    // DSH BrowserAuth permits repeated exchanges for the lifetime of the
+    // process token. Validate without redirects, then let the browser mint its
+    // own cookie. Never copy the WebView cookie into an external profile.
+    let status = probe(&result);
+    match status { 200 | 303 => Ok(result), 401 | 403 => Err("auth"), _ => Err("failed") }
+}
+
+#[cfg(test)]
+mod browser_handoff_tests {
+    use super::*;
+    #[test]
+    fn verifies_token_and_encodes_legacy_values() {
+        let result = browser_handoff("http://127.0.0.1:3080/", "example token&next=elsewhere", |url| {
+            let parsed = tauri::Url::parse(url).unwrap();
+            let pairs: Vec<_> = parsed.query_pairs().collect();
+            assert_eq!(pairs.len(), 1);
+            assert_eq!(pairs[0].1, "example token&next=elsewhere");
+            assert_eq!(parsed.host_str(), Some("127.0.0.1"));
+            303
+        }).unwrap();
+        assert!(result.starts_with("http://127.0.0.1:3080/?token="));
+        assert!(browser_handoff("http://127.0.0.1:3080/", "example", |_| 200).is_ok());
+    }
+    #[test]
+    fn failed_exchange_never_returns_a_login_url() {
+        for status in [0, 302, 401, 403, 404, 500] {
+            let failure = browser_handoff("http://127.0.0.1:3080/", "private-test-token", |_| status).unwrap_err();
+            assert!(!failure.contains("private-test-token"));
+            assert_eq!(failure, if matches!(status, 401 | 403) { "auth" } else { "failed" });
+        }
+    }
+}
+
 /// Roll back the global dsh install to the last known-good version
 /// (saved before the upgrade that broke it).
 pub(crate) fn rollback_dsh_to_previous() -> Result<(), String> {

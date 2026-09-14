@@ -80,6 +80,7 @@ function App() {
   /** The backend could not be authenticated (attached new-dsh instance with
    *  no usable cookie) — a thin explainer bar rides above the iframe. */
   const [authHint, setAuthHint] = useState(false);
+  const [webOpenStatus, setWebOpenStatus] = useState("idle");
   const [overlay, setOverlay] = useState<Overlay>(null);
   /** Env facts, prefetched at startup (and re-fetched on ready transitions) so
    *  the panel opens with data already in hand — no per-open loading spin. */
@@ -178,6 +179,7 @@ function App() {
     let unlistenUpdate: UnlistenFn | undefined;
     let unlistenShowEnv: UnlistenFn | undefined;
     let unlistenAuthHint: UnlistenFn | undefined;
+    let unlistenWebOpen: UnlistenFn | undefined;
     let cancelled = false;
 
     (async () => {
@@ -222,7 +224,11 @@ function App() {
       unlistenAuthHint = await listen("webchat-auth-hint", () => {
         setAuthHint(true);
       });
+      unlistenWebOpen = await listen<string>("web-open-status", event => setWebOpenStatus(event.payload));
+      const webStatus = await invoke<string>("app_web_open_status").catch(() => "idle");
+      if (!cancelled) setWebOpenStatus(webStatus || "idle");
       if (cancelled) {
+        unlistenWebOpen();
         unlistenStatus();
         unlistenUpdate();
         unlistenShowEnv();
@@ -236,6 +242,7 @@ function App() {
       unlistenUpdate?.();
       unlistenShowEnv?.();
       unlistenAuthHint?.();
+      unlistenWebOpen?.();
     };
   }, [refreshEnv, resolveWebchatUrl]);
 
@@ -297,7 +304,13 @@ function App() {
       />
 
       <div className="content">
-        {authHint && (
+        {webOpenStatus !== "idle" && (
+          <div className="auth-hint-bar" role="status">
+            {t(webOpenStatus === "waiting" ? "web.waiting" : webOpenStatus === "auth" ? "web.auth" : webOpenStatus === "timeout" ? "web.timeout" : "web.failed")}
+            <button type="button" className="web-hint-dismiss" aria-label={t("web.dismiss")} onClick={() => setWebOpenStatus("idle")}>×</button>
+          </div>
+        )}
+        {authHint && webOpenStatus === "idle" && (
           <div className="auth-hint-bar" role="status">{t("auth.hint")}</div>
         )}
         {webchatMounted && (

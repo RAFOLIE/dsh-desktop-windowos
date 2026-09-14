@@ -77,3 +77,5 @@ html[data-translucent="true"] .ap-preview aside { background:color-mix(in srgb,v
 .ap-feedback.error { border-color:#c66a4d; }
 @media(max-width:1120px) { .ap-theme-grid { grid-template-columns:1fr; } .ap-preview { min-height:170px; } .ap-preview aside { width:100px; } }
 @media(max-width:680px) { .ap-row { flex-wrap:wrap; gap:12px; } .ap-control { max-width:100%; } .ap-theme-fields .ap-row { flex-wrap:nowrap; } .ap-theme-card > header { flex-wrap:wrap; } .ap-preview aside { width:55px; } .ap-preview-main { padding:16px 10px; } }
+
+.web-hint-dismiss { margin-left:12px; color:inherit; border:0; background:transparent; font-size:18px; padding:0 6px; }

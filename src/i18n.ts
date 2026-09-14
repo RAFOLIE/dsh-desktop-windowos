@@ -9,6 +9,11 @@ export type Locale = "zh" | "zh-Hant" | "en" | "ja" | "ko" | "ru";
  *  `Dict = Record<keyof typeof zh>` turns a missed translation into a compile
  *  error instead of leaked CJK. `{name}`-style tokens interpolate via t(). */
 export const zh = {
+  "web.waiting": "正在等待 DSH 就绪，随后在默认浏览器打开网页。",
+  "web.auth": "无法取得当前后端的网页登录凭据。请从启动该后端的终端打开登录链接；如果希望由桌面程序管理，请先保存任务，再手动重启后端。",
+  "web.timeout": "等待网页服务超时。请在桌面应用查看启动状态或日志，处理后再次点击网页快捷方式。",
+  "web.failed": "无法打开网页。请确认后端正常运行且 Windows 已设置默认浏览器，再重试。",
+  "web.dismiss": "关闭提示",
   "panel.general": "常规",
   "panel.back": "返回聊天",
   "panel.search": "搜索设置…",
@@ -220,6 +225,11 @@ export type TKey = keyof typeof zh;
 type Dict = Record<TKey, string>;
 
 const en: Dict = {
+  "web.waiting": "Waiting for DSH. The web UI will open in your default browser.",
+  "web.auth": "The current backend’s browser credentials are unavailable. Open its login link from the terminal that started it, or save your work and manually restart the backend from the desktop app.",
+  "web.timeout": "Timed out waiting for DSH. Check the desktop startup status or logs, then retry the web shortcut.",
+  "web.failed": "Could not open the web UI. Check that DSH is running and Windows has a default browser, then retry.",
+  "web.dismiss": "Dismiss",
   "panel.general": "General",
   "panel.back": "Back to chat",
   "panel.search": "Search settings…",
@@ -421,6 +431,11 @@ const en: Dict = {
 
 /** 繁體中文（zh-Hant）。 */
 const zhHant: Dict = {
+  "web.waiting": "正在等待 DSH 就緒，隨後在預設瀏覽器開啟網頁。",
+  "web.auth": "無法取得目前後端的網頁登入憑據。請從啟動它的終端開啟登入連結；或先儲存工作，再從桌面應用程式手動重啟後端。",
+  "web.timeout": "等待網頁服務逾時。請查看桌面啟動狀態或日誌，處理後重試捷徑。",
+  "web.failed": "無法開啟網頁。請確認 DSH 正常運作且 Windows 已設定預設瀏覽器，再重試。",
+  "web.dismiss": "關閉提示",
   "panel.general": "一般",
   "panel.back": "返回聊天",
   "panel.search": "搜尋設定…",
@@ -603,6 +618,11 @@ const zhHant: Dict = {
 
 /** 日本語（ja）。 */
 const ja: Dict = {
+  "web.waiting": "DSH の準備を待っています。既定のブラウザーで開きます。",
+  "web.auth": "バックエンドのログイン情報を取得できません。起動元のターミナルのログインリンクを開くか、作業を保存してデスクトップからバックエンドを手動で再起動してください。",
+  "web.timeout": "DSH の待機がタイムアウトしました。起動状態やログを確認してショートカットを再実行してください。",
+  "web.failed": "Web UI を開けません。DSH と Windows の既定ブラウザーを確認してください。",
+  "web.dismiss": "閉じる",
   "panel.general": "一般",
   "panel.back": "チャットに戻る",
   "panel.search": "設定を検索…",
@@ -785,6 +805,11 @@ const ja: Dict = {
 
 /** 한국어（ko）。 */
 const ko: Dict = {
+  "web.waiting": "DSH 준비를 기다리고 있습니다. 기본 브라우저에서 열립니다.",
+  "web.auth": "백엔드 로그인 정보를 가져올 수 없습니다. 실행한 터미널의 로그인 링크를 열거나, 작업을 저장한 후 데스크톱에서 백엔드를 수동으로 다시 시작하세요.",
+  "web.timeout": "DSH 대기 시간이 초과되었습니다. 시작 상태나 로그를 확인한 후 바로가기를 다시 실행하세요.",
+  "web.failed": "웹 UI를 열 수 없습니다. DSH 실행 상태와 Windows 기본 브라우저를 확인하세요.",
+  "web.dismiss": "닫기",
   "panel.general": "일반",
   "panel.back": "채팅으로 돌아가기",
   "panel.search": "설정 검색…",
@@ -967,6 +992,11 @@ const ko: Dict = {
 
 /** Русский (ru). */
 const ru: Dict = {
+  "web.waiting": "Ожидание DSH. Веб-интерфейс откроется в браузере по умолчанию.",
+  "web.auth": "Данные входа этого сервера недоступны. Откройте ссылку входа из терминала, запустившего сервер, либо сохраните работу и вручную перезапустите сервер из приложения.",
+  "web.timeout": "Время ожидания DSH истекло. Проверьте запуск и журналы приложения, затем повторите открытие ярлыка.",
+  "web.failed": "Не удалось открыть веб-интерфейс. Проверьте DSH и браузер по умолчанию в Windows.",
+  "web.dismiss": "Закрыть",
   "panel.general": "Общие",
   "panel.back": "Назад к чату",
   "panel.search": "Поиск настроек…",

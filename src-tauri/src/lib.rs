@@ -3,6 +3,7 @@
 
 mod dsh;
 mod backend_update;
+mod web_shortcut;
 mod menu;
 mod monitor;
 mod update;
@@ -16,6 +17,9 @@ use tauri::{
 /// AppUserModelID stamped on toasts; must match the registry registration in
 /// `ensure_toast_aumid` and the tauri.conf identifier.
 pub(crate) const TOAST_AUMID: &str = "com.dsh.desktop";
+
+#[tauri::command]
+fn app_web_open_status() -> String { web_shortcut::status() }
 
 /// Frontend-invoked retry after a failed start.
 #[tauri::command]
@@ -585,12 +589,13 @@ pub fn run() {    tauri::Builder::default()
         // Registered first: a second launch (e.g. toast foreground activation,
         // or the user double-clicking the exe again) focuses the existing window
         // instead of starting a second instance.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            show_main_window(app);
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if web_shortcut::requested(&args) { web_shortcut::open(app.clone()); }
+            else { show_main_window(app); }
         }))
         .plugin(tauri_plugin_opener::init())
         .manage(dsh::DshState::new())
-        .invoke_handler(tauri::generate_handler![dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_source, dsh_backend_update_status, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, dsh_webchat_url, dsh_rollback_dsh, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
+        .invoke_handler(tauri::generate_handler![app_web_open_status, dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_source, dsh_backend_update_status, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, dsh_webchat_url, dsh_rollback_dsh, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
         .setup(|app| {
             // Session-start log rotation (ComfyUI-style) before anything logs
             // or spawns: previous session archived under a timestamped name.
@@ -598,6 +603,10 @@ pub fn run() {    tauri::Builder::default()
 
             #[cfg(windows)]
             ensure_toast_aumid();
+            #[cfg(windows)]
+            if let Err(error) = web_shortcut::install() {
+                dsh::log_write(dsh::LogLevel::Warn, &format!("Web shortcut registration failed: {error}"));
+            }
 
             // The window is built here (not in tauri.conf.json) so it can carry
             // a new-window handler: every new-window request (target=_blank
@@ -772,6 +781,9 @@ pub fn run() {    tauri::Builder::default()
             std::thread::spawn(move || dsh::startup(lifecycle));
             let monitor_app = app.handle().clone();
             std::thread::spawn(move || monitor::run(monitor_app));
+            if web_shortcut::requested(&std::env::args().collect::<Vec<_>>()) {
+                web_shortcut::open(app.handle().clone());
+            }
             update::spawn_check(app.handle().clone());
 
             Ok(())

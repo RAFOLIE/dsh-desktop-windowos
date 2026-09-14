@@ -1,6 +1,6 @@
 [package]
 name = "dsh-desktop-windowos"
-version = "1.6.51"
+version = "1.6.52"
 description = "DeepSeek Harness desktop shell"
 authors = ["RAFOLIE"]
 edition = "2021"
@@ -22,6 +22,7 @@ custom-protocol = ["tauri/custom-protocol"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+dirs = "6"
 semver = "1"
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2"

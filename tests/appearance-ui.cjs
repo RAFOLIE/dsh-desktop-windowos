@@ -35,6 +35,7 @@ fs.mkdirSync(output,{recursive:true});
        return null;
      }
    };
+   window.testEmit=(name,payload)=>events[name]?.({payload});
    window.testReady=()=>{events['dsh-status']?.({payload:{status:'ready',attached:false}});events['app-update']?.({payload:{state:'none'}});};
  });
  await page.route('**/mock-chat',r=>r.fulfill({contentType:'text/html',body:'<textarea id="draft">Persistent draft</textarea>'}));
@@ -43,6 +44,14 @@ fs.mkdirSync(output,{recursive:true});
  await page.evaluate(()=>window.testReady());
  await page.locator('iframe').waitFor();
  await page.frameLocator('iframe').locator('#draft').fill('Keep this conversation draft');
+ await page.evaluate(()=>window.testEmit('web-open-status','auth'));
+ await page.getByRole('status').filter({hasText:'无法取得当前后端'}).waitFor();
+ await page.getByRole('button',{name:'关闭提示',exact:true}).click();
+ await page.evaluate(()=>window.testEmit('web-open-status','waiting'));
+ await page.getByRole('status').filter({hasText:'正在等待 DSH'}).waitFor();
+ await page.evaluate(()=>window.testEmit('web-open-status','idle'));
+ await page.waitForFunction(()=>!document.querySelector('.web-hint-dismiss'));
+
  await page.locator('.tb-pill').click();
  await page.getByRole('heading',{name:'常规',exact:true}).waitFor();
 

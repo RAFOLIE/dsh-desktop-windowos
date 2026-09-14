@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.6.52 — 2026-09-14 【稳定版】
+
+修复桌面「DeepSeek Harness Web」快捷方式在新版 DSH 下打开 401 页的问题。npm 插件版本保持 1.5.12。
+
+### 网页快捷方式
+
+- 旧快捷方式只有裸地址 `http://127.0.0.1:3080`。新版 DSH 需要进程登录令牌，桌面 WebView 的 Cookie 不会自动共享给默认浏览器。
+- 桌面应用注册当前用户的 `dsh-desktop-web` 入口，将已有默认网页快捷方式迁移到 `dsh-desktop-web://open`。入口只执行固定的 `--open-web` 操作，不接受外部 URL 或命令参数；快捷方式和注册表中不保存登录令牌。
+- 未启动时先运行桌面应用并等待 DSH 就绪；已启动时通过单实例转交请求，避免启动第二个后端。验证当前登录链接后，默认浏览器自行完成令牌交换和 Cookie 登录。
+- 等待、超时、浏览器启动失败或缺少外部后端凭据时提供六语言提示；不会为了打开网页擅自停止或重启外部后端。
+- 兼容旧 npm 插件再次生成默认裸地址：应用运行时自动修复该默认快捷方式。自定义 URL、其他端口、已删除快捷方式不受影响。
+
+### 使用与验证
+
+更新后请从托盘退出旧版桌面应用并重新打开一次，再使用原来的「DeepSeek Harness Web」快捷方式。外部终端启动的 DSH 若无法提供进程令牌，需要使用该终端的原始登录链接，或保存工作后手动从桌面应用重启后端。
+
+验证覆盖：本机裸地址 HTTP 401 根因、Windows InternetShortcut 到注册协议的实际分发、快捷方式迁移与自定义地址保留、参数匹配、登录链接编码/验证失败处理、前端提示及设置回归、生产构建与 exe 内嵌资源检查。未重启用户正在运行的后端来做登录测试。
+
+### English
+
+Fixes the desktop Web shortcut opening an unauthorized page on BrowserAuth-enabled DSH. The desktop app registers a per-user, fixed-action URI handler and migrates the existing default shortcut to it without storing credentials. The handler waits for backend readiness, reuses the running desktop instance, validates the current process login URL, and lets the default browser establish its own cookie. Legacy plugin rewrites of the default shortcut are repaired while the desktop app runs; custom URLs and deleted shortcuts are preserved.
+
+Restart the desktop app once after updating, then use the same Web shortcut. Externally launched backends without available login credentials show guidance instead of being stopped or restarted automatically. Six locales cover waiting and failure states. Validation includes native Windows shortcut dispatch, migration/argument/auth tests, browser UI regression and production build checks; the user's live backend was not restarted for authentication testing. The npm plugin remains 1.5.12.
+
 ## v1.6.51 — 2026-09-14 【稳定版】
 
 本版汇总 v1.6.50 之后的设置工作区、外观定制和内核更新逻辑改造。应用与 npm 插件继续独立版本线，插件保持 1.5.12。
