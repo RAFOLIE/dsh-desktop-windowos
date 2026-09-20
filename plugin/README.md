@@ -1,6 +1,6 @@
 # dsh-desktop-plugin
 
-> **版本规则(2026-08-16 起)**:本插件与桌面应用**版本线解耦**——应用经 GitHub Release 自由前进(现 v1.6.50,已适配 dsh web 0.1.2+ 新鉴权体系),npm 包随插件内容变更发布(现 1.5.12,本版为 README/清单同步)。两线版本号不一致是**有意设计**:纯版本号空包只会触发所有用户的插件市场更新提示与重复下载。桌面应用启动时自动把已装插件对齐 npm 最新版(只升不降)。
+> **版本规则(2026-08-16 起)**:本插件与桌面应用**版本线解耦**——应用经 GitHub Release 自由前进(现 v1.6.63,已适配 dsh web 0.1.6-alpha 新版),npm 包随插件内容变更发布(仓库 manifest 现 1.5.13,本版仅新增 DSH Store 兼容矩阵声明、未发 npm;npm 仍为 1.5.12,随下次代码变更发布)。两线版本号不一致是**有意设计**:纯版本号空包只会触发所有用户的插件市场更新提示与重复下载。桌面应用启动时自动把已装插件对齐 npm 最新版(只升不降)。
 
 DSH 插件:安装并启动 [dsh-desktop-windowos](https://github.com/RAFOLIE/dsh-desktop-windowos) 桌面壳(DeepSeek Harness 的 Windows 托盘应用)。
 
@@ -38,7 +38,7 @@ dsh plugin --profile web add dsh-desktop-plugin
 
 # English
 
-> **Versioning rule** (since 2026-08-16): npm and the app version lines are decoupled — the app advances freely via GitHub Releases (currently v1.6.2) while this package ships only when the plugin code changes (currently 1.5.10). The mismatch is deliberate: identical empty packages would just trigger update prompts for every plugin user. The desktop app aligns installed plugins to npm latest (upgrade only).
+> **Versioning rule** (since 2026-08-16): npm and the app version lines are decoupled — the app advances freely via GitHub Releases (currently v1.6.63, adapted to dsh web 0.1.6-alpha) while this package ships only when the plugin code changes. The repo manifest is currently 1.5.13 — a manifest-only bump that adds the DSH Store compatibility matrix and is intentionally **not** published to npm (npm stays at 1.5.12 and ships with the next code change). The mismatch is deliberate: identical empty packages would just trigger update prompts for every plugin user. The desktop app aligns installed plugins to npm latest (upgrade only).
 
 DSH plugin that installs and launches [dsh-desktop-windowos](https://github.com/RAFOLIE/dsh-desktop-windowos) — the Windows tray shell for DeepSeek Harness.
 
