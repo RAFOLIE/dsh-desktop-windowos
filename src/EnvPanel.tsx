@@ -492,9 +492,11 @@ const appChannels = (t: T): ChannelOption[] => [
 function UpdateTab({
   info,
   onBackendUpgraded,
+  onViewLogs,
 }: {
   info: EnvInfo | null;
   onBackendUpgraded: () => void;
+  onViewLogs: () => void;
 }) {
   const [appRel, setAppRel] = useState<{ latest?: string; checkedAt?: string } | null>(null);
   const [appRelSrc, setAppRelSrc] = useState<"stable" | "dev">("stable");
@@ -547,7 +549,7 @@ function UpdateTab({
 
   return (
     <div className="ep-content-inner">
-      <BackendUpdate onChanged={onBackendUpgraded} />
+      <BackendUpdate onChanged={onBackendUpgraded} onViewLogs={onViewLogs} />
 
       <section className="ep-group">
         <div className="ep-version-heading">
@@ -1138,6 +1140,7 @@ export default function EnvPanel({
                 <UpdateTab
                   info={info}
                   onBackendUpgraded={onRefresh}
+                  onViewLogs={() => switchTab("log")}
                 />
               )}
               {tab === "settings" && <SettingsTab currentTab={tab} />}

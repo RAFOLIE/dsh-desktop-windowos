@@ -4,7 +4,7 @@ use crate::dsh;
 use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command,
     sync::Mutex,
     time::{Duration, Instant},
 };
@@ -28,6 +28,12 @@ pub struct Job {
     pub phase: String,
     pub target: String,
     pub error: Option<String>,
+    pub failed_phase: Option<String>,
+    pub installation_started: bool,
+    pub elapsed_seconds: u64,
+    pub budget_seconds: Option<u64>,
+    #[serde(skip)]
+    phase_started: Option<Instant>,
 }
 static JOB: Mutex<Option<Job>> = Mutex::new(None);
 // Disk contents can change while a process still runs. Keep the first observed
@@ -51,7 +57,10 @@ pub(crate) fn running_version() -> Option<String> {
     observed_version(owner["pid"].as_u64(), &path)
 }
 pub fn status() -> Option<Job> {
-    JOB.lock().unwrap().clone()
+    JOB.lock().unwrap().clone().map(|mut j| {
+        if let Some(started) = j.phase_started { j.elapsed_seconds = started.elapsed().as_secs(); }
+        j
+    })
 }
 pub fn busy() -> bool {
     status().is_some_and(|j| !matches!(j.phase.as_str(), "succeeded" | "failed"))
@@ -61,6 +70,11 @@ fn phase(app: &AppHandle, name: &str, error: Option<String>) {
     let snapshot = {
         let mut state = JOB.lock().unwrap();
         if let Some(j) = state.as_mut() {
+            if name == "failed" && j.failed_phase.is_none() { j.failed_phase = Some(j.phase.clone()); }
+            if let Some(started) = j.phase_started { j.elapsed_seconds = started.elapsed().as_secs(); }
+            j.phase_started = if matches!(name, "failed" | "succeeded") { None } else { Some(Instant::now()) };
+            if j.phase_started.is_some() { j.elapsed_seconds = 0; }
+            j.budget_seconds = match name { "checking" => Some(90), "installing" => Some(600), _ => None };
             j.phase = name.into();
             j.error = error;
         }
@@ -134,61 +148,10 @@ fn npm_tools() -> Result<(PathBuf, PathBuf), String> {
 
 // Direct node + npm-cli arguments: no user-selected version enters a shell.
 fn npm_run(args: &[&str], timeout: Duration) -> Result<String, String> {
-    use std::io::Read;
     let (node, cli) = npm_tools()?;
     let mut command = Command::new(node);
-    command
-        .arg(cli)
-        .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x08000000);
-    }
-    let mut child = command.spawn().map_err(|e| e.to_string())?;
-    let mut out = child.stdout.take().unwrap();
-    let mut err = child.stderr.take().unwrap();
-    let output = std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let _ = out.read_to_end(&mut bytes);
-        bytes
-    });
-    let errors = std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let _ = err.read_to_end(&mut bytes);
-        bytes
-    });
-    let deadline = Instant::now() + timeout;
-    let success = loop {
-        match child.try_wait().map_err(|e| e.to_string())? {
-            Some(status) => break status.success(),
-            None if Instant::now() >= deadline => {
-                dsh::kill_tree(child.id());
-                let _ = child.wait();
-                return Err("npm operation timed out; check the log before retrying".into());
-            }
-            None => std::thread::sleep(Duration::from_millis(100)),
-        }
-    };
-    let stdout = String::from_utf8_lossy(&output.join().unwrap_or_default())
-        .trim()
-        .to_string();
-    if success {
-        Ok(stdout)
-    } else {
-        let bytes = errors.join().unwrap_or_default();
-        let text = String::from_utf8_lossy(&bytes);
-        Err(text
-            .chars()
-            .rev()
-            .take(1800)
-            .collect::<String>()
-            .chars()
-            .rev()
-            .collect())
-    }
+    command.arg(cli).args(args).args(["--update-notifier=false", "--loglevel=http"]);
+    crate::npm_operation::run(&mut command, timeout, args.first().copied().unwrap_or("unknown"))
 }
 
 pub fn source() -> Source {
@@ -282,6 +245,11 @@ pub fn start(
         phase: "checking".into(),
         target: target.clone(),
         error: None,
+        failed_phase: None,
+        installation_started: false,
+        elapsed_seconds: 0,
+        budget_seconds: Some(90),
+        phase_started: Some(Instant::now()),
     };
     {
         let mut state = JOB.lock().unwrap();
@@ -345,15 +313,9 @@ fn perform(
     }
     // Confirm the exact package exists before stopping the working backend.
     let spec = format!("@deepseek-ai/dsh@{target}");
-    let available = npm_run(
-        &[
-            "view",
-            &spec,
-            "version",
-            "--registry=https://registry.npmjs.org",
-        ],
-        Duration::from_secs(30),
-    )?;
+    let mut query_args = vec!["view", &spec, "version", "--registry=https://registry.npmjs.org"];
+    query_args.extend_from_slice(crate::npm_operation::QUERY_FLAGS);
+    let available = npm_run(&query_args, crate::npm_operation::QUERY_TIMEOUT)?;
     if available != target {
         return Err("Registry did not confirm the selected version".into());
     }
@@ -378,6 +340,7 @@ fn perform(
         return Err("The old backend is still running; installation was not started".into());
     }
     let prefix = before.prefix.as_deref().ok_or("Missing npm prefix")?;
+    if let Some(j) = JOB.lock().unwrap().as_mut() { j.installation_started = true; }
     let installed = npm_run(
         &[
             "install",
@@ -389,6 +352,9 @@ fn perform(
         ],
         Duration::from_secs(600),
     );
+    if installed.is_err() {
+        if let Some(j) = JOB.lock().unwrap().as_mut() { j.failed_phase = Some("installing".into()); }
+    }
     phase(app, "restarting", None);
     dsh::startup(app.clone());
     installed?;

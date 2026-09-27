@@ -68,7 +68,7 @@ DeepSeek Harness(DSH)的 Windows 桌面壳,基于 **Tauri v2 + React 18 + TypeSc
 |---|---|
 | Node.js | ^22.19 或 ≥ 24(**必须**;DSH 的 Node 版本要求) |
 | DSH | 可选,三种方式任一:全局安装 `npm i -g @deepseek-ai/dsh`(最快,推荐);本地安装(在 exe 旁或任意被搜索目录执行 `pnpm add @deepseek-ai/dsh`);都没有则首次启动时点「下载并启动」走 npx |
-| DSH 版本兼容 | **新旧两代均支持**(壳 ≥ v1.6.49):≤0.1.1-rc.2(无鉴权)与 ≥0.1.2-alpha.1(进程 token + Cookie 浏览器鉴权、`/api` 端点斜杠化,含 0.1.5-rc.1)开箱即用,升级前后历史对话均正常显示 |
+| DSH 版本兼容 | 保留旧协议与进程 token + Cookie 鉴权适配；v1.6.65 将 **0.1.6-alpha.2 / 0.1.7-alpha.2** 纳入真实内核连接回归。桌面更新无需升级内核，第三方插件兼容性单独确认。见 [双版本验证](docs/backend-compatibility.md) |
 | 从源码跑 DSH 的开发者 | 设 `DSH_CMD`(`pnpm dsh web`)与 `DSH_CWD`(DSH 仓库路径)环境变量 |
 | WebView2 | Windows 11 自带 |
 
@@ -178,7 +178,7 @@ Not bundled with the exe:
 |---|---|
 | Node.js | ^22.19 or ≥ 24 (**required**; the Node version DSH declares) |
 | DSH | optional, any of: global install `npm i -g @deepseek-ai/dsh` (fastest, recommended); local install (`pnpm add @deepseek-ai/dsh` beside the exe or in any searched dir); or click "下载并启动" on first launch to go through npx |
-| DSH version support | **both generations supported** (shell ≥ v1.6.49): ≤0.1.1-rc.2 (no auth) and ≥0.1.2-alpha.1 (per-process token + browser-cookie auth, slash-named `/api` endpoints, incl. 0.1.5-rc.1) work out of the box; conversation history displays correctly across the upgrade |
+| DSH version support | Legacy protocol and token/cookie authentication adapters are retained. v1.6.65 adds real-backend connection regression coverage for **0.1.6-alpha.2 / 0.1.7-alpha.2**. Desktop updates do not require backend upgrades; third-party plugins require separate compatibility checks. See [verification](docs/backend-compatibility.md) |
 | Running DSH from source | set the `DSH_CMD` (`pnpm dsh web`) and `DSH_CWD` (DSH repo path) env vars |
 | WebView2 | included with Windows 11 |
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { versionRelation, jobBusy, manualCommand } from '../src/backendUpdateModel.ts';
+import { versionRelation, jobBusy, manualCommand, updateErrorKind, needsSettingsMigration } from '../src/backendUpdateModel.ts';
 
 test('channel comparison handles prereleases, numeric identifiers and releases', () => {
   assert.equal(versionRelation('0.1.5-rc.2', '0.1.5-rc.1'), 'ahead');
@@ -31,4 +31,22 @@ test('manual commands target only recognized sources, pin a version and quote th
   assert.equal(manualCommand(null, '0.1.5'), null);
   assert.equal(manualCommand({kind:'npx'}, '0.1.5'), 'npx @deepseek-ai/dsh@0.1.5 web');
   assert.equal(manualCommand({kind:'global',prefix:'C:/npm'}, 'latest; calc'), null);
+});
+
+test('network errors remain specific even when the outer deadline also expires', () => {
+  assert.equal(updateErrorKind('npm: TIMEOUT; codes=[ECONNRESET]'), 'reset');
+  assert.equal(updateErrorKind('npm: FAILED; codes=[E404]'), 'missing');
+  assert.equal(updateErrorKind('npm: FAILED; codes=[ETARGET]'), 'missing');
+  assert.equal(updateErrorKind('npm: FAILED; codes=[ETIMEDOUT]'), 'timeout');
+  assert.equal(updateErrorKind('npm: FAILED; codes=[ENOTFOUND]'), 'network');
+  assert.equal(updateErrorKind('npm: FAILED; codes=[EPERM]'), 'other');
+});
+
+test('settings migration notice only applies when crossing into the 0.1.7 settings API', () => {
+  assert.equal(needsSettingsMigration('0.1.6-alpha.2', '0.1.7-alpha.2'), true);
+  assert.equal(needsSettingsMigration('0.1.6-alpha.2', '0.1.7-rc.2'), true);
+  assert.equal(needsSettingsMigration('0.1.7-alpha.2', '0.1.7-rc.2'), false);
+  assert.equal(needsSettingsMigration('0.1.7-alpha.2', '0.1.6-alpha.2'), false);
+  assert.equal(needsSettingsMigration('0.1.6-alpha.2', '0.1.6-alpha.2'), false);
+  assert.equal(needsSettingsMigration(undefined, '0.1.7-alpha.2'), false);
 });

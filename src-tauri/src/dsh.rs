@@ -636,15 +636,18 @@ pub(crate) fn custom_dsh_path() -> Option<String> {
 /// sees one shape (the v1.6.47 "401 = alive" branch sat on the `Ok` path and
 /// was dead code for exactly this reason, issues #10/#12).
 fn rpc_probe(endpoint: &str) -> (u16, Option<Value>) {
+    rpc_probe_at(DSH_BASE, endpoint)
+}
+fn rpc_probe_at(base: &str, endpoint: &str) -> (u16, Option<Value>) {
     let body = json!({
         "type": "client-request",
         "rpcId": Uuid::new_v4().to_string(),
         "method": endpoint,
         "payload": {}
     });
-    let response = ureq::post(&format!("{DSH_BASE}/api/{endpoint}"))
+    let response = ureq::post(&format!("{base}/api/{endpoint}"))
         // Match the host authority so the /api trust fence (Origin vs Host) passes.
-        .set("Origin", DSH_ORIGIN)
+        .set("Origin", base)
         .timeout(Duration::from_secs(3))
         .send_json(body);
     match response {
@@ -2545,5 +2548,32 @@ mod tests {
         // Unreachable (0) and other statuses never count.
         assert!(!probe_result_alive(0, None, false));
         assert!(!probe_result_alive(502, None, false));
+    }
+}
+
+
+#[cfg(test)]
+mod live_backend_compatibility {
+    use super::*;
+    #[test]
+    #[ignore = "Requires isolated real backend; driven by tests/backend-compatibility.cjs"]
+    fn exact_backend_auth_contract() {
+        let base = std::env::var("DSH_COMPAT_BASE").expect("isolated base URL");
+        assert!(base.starts_with("http://127.0.0.1:"));
+        let launch = std::env::var("DSH_COMPAT_LAUNCH").expect("isolated launch URL");
+        let shim = std::env::var("DSH_COMPAT_SHIM").expect("isolated CLI shim");
+        assert!(matches!(crate::startup_policy::no_open(Path::new(&shim)), crate::startup_policy::Capability::Supported));
+        let (status, body) = rpc_probe_at(&base, "host.describe");
+        let alive = if status == 404 {
+            let (status, body) = rpc_probe_at(&base, "session/list");
+            probe_result_alive(status, body.as_ref(), false)
+        } else { probe_result_alive(status, body.as_ref(), true) };
+        assert!(alive, "real backend did not satisfy readiness contract");
+        assert_eq!(http_get_no_redirect(&format!("{base}/")).0, 401);
+        let (status, response) = http_get_no_redirect(&launch);
+        assert_eq!(status, 303, "launch exchange contract changed");
+        let cookie = parse_session_cookie(response.as_ref().and_then(|r| r.header("Set-Cookie")).expect("auth cookie")).expect("recognized session cookie");
+        assert!(cookie.max_age > 0);
+        assert_eq!(browser_handoff(&format!("{base}/"), tauri::Url::parse(&launch).unwrap().query_pairs().find(|(k,_)| k == "token").unwrap().1.as_ref(), |url| http_get_no_redirect(url).0).is_ok(), true);
     }
 }

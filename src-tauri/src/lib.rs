@@ -4,6 +4,7 @@
 mod dsh;
 mod startup_policy;
 mod backend_update;
+mod npm_operation;
 mod web_shortcut;
 mod menu;
 mod monitor;
