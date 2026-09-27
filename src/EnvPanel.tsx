@@ -38,7 +38,7 @@ export type EnvInfo = {
 type Tab = "env" | "log" | "update" | "settings" | "appearance";
 
 const TABS: { id: Tab; labelKey: Parameters<T>[0]; icon: IconNode; group: "preferences" | "application"; keywords: Parameters<T>[0][] }[] = [
-  { id: "settings", labelKey: "panel.general", icon: Settings2, group: "preferences", keywords: ["set.language", "set.alwaysOnTop", "set.alwaysOnTopDesc", "set.autostart", "set.autostartDesc", "set.closeAction", "set.closeActionHelp", "set.rememberTab", "set.rememberTabDesc"] },
+  { id: "settings", labelKey: "panel.general", icon: Settings2, group: "preferences", keywords: ["set.trayClick", "set.trayClickHelp", "set.language", "set.alwaysOnTop", "set.alwaysOnTopDesc", "set.autostart", "set.autostartDesc", "set.closeAction", "set.closeActionHelp", "set.rememberTab", "set.rememberTabDesc"] },
   { id: "appearance", labelKey: "set.groupAppearance", icon: Palette, group: "preferences", keywords: ["set.theme", "set.themeDesc", "set.themeSystem", "set.themeDark", "set.themeLight"] },
   { id: "env", labelKey: "tab.env", icon: Monitor, group: "application", keywords: ["env.secRuntime", "env.secCore", "env.secVersions", "env.secStorage"] },
   { id: "update", labelKey: "tab.update", icon: Download, group: "application", keywords: ["upd.autoUpdate", "upd.channelTitle", "upd.channelHelpApp", "upd.channelHelpBackend"] },
@@ -659,6 +659,7 @@ function UpdateTab({
 /** Shell prefs served by app_get_shell_settings. */
 type ShellSettings = {
   closeAction: "tray" | "exit";
+  trayClickAction: "single" | "double";
   alwaysOnTop: boolean;
   autostart: boolean;
   uiTheme: UiTheme;
@@ -716,10 +717,13 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
     () => localStorage.getItem("epRememberTab") !== "0",
   );
   const [busyAutostart, setBusyAutostart] = useState(false);
+  const [busyTray, setBusyTray] = useState(false);
+  const [trayError, setTrayError] = useState(false);
 
   useEffect(() => {
     invoke<{
       closeAction?: string;
+      trayClickAction?: string;
       alwaysOnTop?: boolean;
       autostart?: boolean;
       uiTheme?: string;
@@ -727,6 +731,7 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
     }>("app_get_shell_settings")
       .then((r) => {
         setCfg({
+          trayClickAction: r.trayClickAction === "single" ? "single" : "double",
           closeAction: r.closeAction === "exit" ? "exit" : "tray",
           alwaysOnTop: r.alwaysOnTop === true,
           autostart: r.autostart === true,
@@ -743,6 +748,16 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
     invoke("app_set_close_action", { action: id })
       .then(() => setCfg((c) => (c ? { ...c, closeAction: id === "exit" ? "exit" : "tray" } : c)))
       .catch(() => {});
+  };
+
+  const saveTrayClick = async (id: string) => {
+    if (busyTray || (id !== "single" && id !== "double")) return;
+    setBusyTray(true); setTrayError(false);
+    try {
+      await invoke("app_set_tray_click_action", { action: id });
+      setCfg(c => c ? { ...c, trayClickAction: id } : c);
+    } catch { setTrayError(true); }
+    finally { setBusyTray(false); }
   };
 
   const saveAlwaysOnTop = () => {
@@ -826,6 +841,15 @@ function SettingsTab({ currentTab }: { currentTab: Tab }) {
             disabled={cfg === null || busyAutostart}
             onToggle={saveAutostart}
           />
+          <div className="ep-row">
+            <div className="ep-row-label">{t("set.trayClick")}<span className="ep-row-description">{t("set.trayClickHelp")}</span></div>
+            <div className="ep-row-value" />
+            <div className="ep-row-actions"><ChannelPicker value={cfg?.trayClickAction ?? "double"} onChange={id => void saveTrayClick(id)} options={[
+              { id: "single", title: t("set.traySingle"), desc: "" },
+              { id: "double", title: t("set.trayDouble"), desc: "" },
+            ]} disabled={cfg === null || busyTray} hideDesc /></div>
+          </div>
+          {trayError && <p role="alert" className="ep-row-description">{t("set.traySaveFailed")}</p>}
           <div className="ep-row">
             <div className="ep-row-label">{t("set.closeAction")}<span className="ep-row-description">{t("set.closeActionHelp")}</span></div>
             <div className="ep-row-value" />

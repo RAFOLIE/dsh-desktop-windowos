@@ -13,7 +13,7 @@ mod update;
 
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::{TrayIconBuilder, TrayIconEvent},
+    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
     AppHandle, Emitter, Manager, WindowEvent, Wry,
 };
 
@@ -67,6 +67,7 @@ fn dsh_npm_probe() -> serde_json::Value {
 fn app_get_shell_settings() -> serde_json::Value {
     serde_json::json!({
         "closeAction": dsh::close_action(),
+        "trayClickAction": dsh::tray_click_action(),
         "alwaysOnTop": dsh::always_on_top(),
         "autostart": dsh::autostart::enabled(),
         "uiTheme": dsh::ui_theme(),
@@ -95,7 +96,33 @@ fn app_set_ui_theme(theme: String) -> Result<(), String> {
 fn app_set_ui_locale(app: AppHandle, locale: String) -> String {
     dsh::set_ui_locale(&locale);
     rebuild_tray_menu(&app);
+    update_tray_tooltip(&app);
     dsh::resolved_locale()
+}
+
+#[tauri::command]
+fn app_set_tray_click_action(app: AppHandle, action: String) -> Result<(), String> {
+    dsh::set_tray_click_action(&action)?;
+    update_tray_tooltip(&app);
+    Ok(())
+}
+fn tray_tooltip() -> String {
+    let hint = if dsh::tray_click_action() == "single" {
+        dsh::ui_txt6("单击打开", "單擊開啟", "Click to open", "クリックして開く", "클릭하여 열기", "Один щелчок — открыть")
+    } else {
+        dsh::ui_txt6("双击打开", "雙擊開啟", "Double-click to open", "ダブルクリックして開く", "두 번 클릭하여 열기", "Двойной щелчок — открыть")
+    };
+    format!("DeepSeek Harness — {hint}")
+}
+fn update_tray_tooltip(app: &AppHandle) {
+    if let Some(tray) = app.tray_by_id("main-tray") { let _ = tray.set_tooltip(Some(tray_tooltip())); }
+}
+fn tray_opens_window(action: &str, event: &TrayIconEvent) -> bool {
+    match event {
+        TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } => action == "single",
+        TrayIconEvent::DoubleClick { button: MouseButton::Left, .. } => action != "single",
+        _ => false,
+    }
 }
 
 /// Tray menu built for the current locale (ids stay stable; only labels flip).
@@ -448,6 +475,7 @@ fn window_is_maximized(app: AppHandle) -> bool {
 pub(crate) fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
+        let _ = window.unminimize();
         let _ = window.set_focus();
     }
 }
@@ -607,7 +635,7 @@ pub fn run() {    tauri::Builder::default()
         }))
         .plugin(tauri_plugin_opener::init())
         .manage(dsh::DshState::new())
-        .invoke_handler(tauri::generate_handler![window_shell_ready, app_web_open_status, dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_source, dsh_backend_update_status, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, dsh_webchat_url, dsh_rollback_dsh, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
+        .invoke_handler(tauri::generate_handler![window_shell_ready, app_web_open_status, dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_source, dsh_backend_update_status, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, dsh_webchat_url, dsh_rollback_dsh, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_tray_click_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
         .setup(|app| {
             // Session-start log rotation (ComfyUI-style) before anything logs
             // or spawns: previous session archived under a timestamped name.
@@ -765,9 +793,9 @@ pub fn run() {    tauri::Builder::default()
                         .expect("default window icon missing")
                         .clone(),
                 )
-                .tooltip("DeepSeek Harness")
+                .tooltip(tray_tooltip())
                 .menu(&menu)
-                // Left-click should not pop the menu; double-click opens the window.
+                // Left-click follows the saved activation mode; right-click keeps the menu.
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_main_window(app),
@@ -779,7 +807,7 @@ pub fn run() {    tauri::Builder::default()
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::DoubleClick { .. } = event {
+                    if tray_opens_window(&dsh::tray_click_action(), &event) {
                         show_main_window(tray.app_handle());
                     }
                 })
@@ -826,4 +854,55 @@ pub fn run() {    tauri::Builder::default()
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+
+#[cfg(test)]
+mod tray_tests {
+    use super::*;
+    fn click(button: MouseButton, state: MouseButtonState) -> TrayIconEvent {
+        TrayIconEvent::Click { id: "fixture".into(), position: tauri::PhysicalPosition::new(0.0, 0.0),
+            rect: tauri::Rect::default(), button, button_state: state }
+    }
+    #[test]
+    fn tray_gestures_respect_mode_and_ignore_other_buttons() {
+        let up = click(MouseButton::Left, MouseButtonState::Up);
+        assert!(tray_opens_window("single", &up));
+        assert!(!tray_opens_window("double", &up));
+        for mode in ["single", "double"] {
+            assert!(!tray_opens_window(mode, &click(MouseButton::Left, MouseButtonState::Down)));
+            assert!(!tray_opens_window(mode, &click(MouseButton::Right, MouseButtonState::Up)));
+            assert!(!tray_opens_window(mode, &click(MouseButton::Middle, MouseButtonState::Up)));
+            let double = TrayIconEvent::DoubleClick { id: "fixture".into(), position: tauri::PhysicalPosition::new(0.0, 0.0), rect: tauri::Rect::default(), button: MouseButton::Left };
+            assert_eq!(tray_opens_window(mode, &double), mode == "double");
+        }
+    }
+    #[cfg(feature = "native-smoke")]
+    #[test]
+    #[ignore = "Creates only an isolated blank native window; no user backend or tray interaction"]
+    fn native_window_restore() {
+        let mut context = tauri::generate_context!();
+        context.config_mut().identifier = "com.dsh.desktop.restore-test".into();
+        let app = tauri::Builder::default().any_thread().build(context).expect("isolated app");
+        let profile = std::env::temp_dir().join(format!("dsh-tray-restore-{}", uuid::Uuid::new_v4()));
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", tauri::WebviewUrl::External("about:blank".parse().unwrap()))
+            .title("DSH isolated restore check").data_directory(profile).inner_size(360.0, 180.0).build().unwrap();
+        let handle = app.handle().clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let pause = || std::thread::sleep(std::time::Duration::from_millis(350));
+                window.minimize().unwrap(); pause(); assert!(window.is_minimized().unwrap());
+                show_main_window(&handle); pause(); assert!(!window.is_minimized().unwrap()); assert!(window.is_visible().unwrap());
+                window.hide().unwrap(); pause(); assert!(!window.is_visible().unwrap());
+                show_main_window(&handle); pause(); assert!(window.is_visible().unwrap()); assert!(!window.is_minimized().unwrap());
+                window.maximize().unwrap(); pause();
+                window.minimize().unwrap(); pause();
+                show_main_window(&handle); pause(); assert!(!window.is_minimized().unwrap()); assert!(window.is_maximized().unwrap());
+            }));
+            let _ = tx.send(result.is_ok()); handle.exit(0);
+        });
+        app.run_return(|_, _| {});
+        assert!(rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap());
+    }
 }

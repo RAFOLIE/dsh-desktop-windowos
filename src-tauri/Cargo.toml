@@ -1,6 +1,6 @@
 [package]
 name = "dsh-desktop-windowos"
-version = "1.6.67"
+version = "1.6.68"
 description = "DeepSeek Harness desktop shell"
 authors = ["RAFOLIE"]
 edition = "2021"
@@ -13,6 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 
 [features]
+native-smoke = []
 # 发布构建需显式声明 custom-protocol: tauri 的 build script 以 dev = !custom_protocol
 # 判定模式,缺省时 release 也会回退到 devUrl(http://localhost:1420),webview 显示
 # 连接被拒绝而不是应用界面(直接 cargo build --release 必现)。

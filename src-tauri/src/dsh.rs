@@ -316,6 +316,50 @@ pub(crate) fn set_close_action(action: &str) {
     write_settings(settings);
 }
 
+/// Tray activation defaults to the existing double-click behavior.
+pub(crate) fn tray_click_action() -> String {
+    if read_settings()["trayClickAction"].as_str() == Some("single") { "single" } else { "double" }.into()
+}
+pub(crate) fn set_tray_click_action(action: &str) -> Result<(), String> {
+    if !matches!(action, "single" | "double") { return Err("Invalid tray click action".into()); }
+    save_tray_click_action(&settings_path(), action)
+}
+fn save_tray_click_action(path: &Path, action: &str) -> Result<(), String> {
+    if !matches!(action, "single" | "double") { return Err("Invalid tray click action".into()); }
+    let mut settings: Value = match std::fs::read_to_string(path) {
+        Ok(text) => serde_json::from_str(text.trim_start_matches('\u{feff}')).map_err(|e| format!("Cannot read settings: {e}"))?,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => json!({}),
+        Err(e) => return Err(e.to_string()),
+    };
+    if !settings.is_object() { return Err("Settings must be an object".into()); }
+    settings["trayClickAction"] = json!(action);
+    std::fs::write(path, serde_json::to_vec(&settings).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tray_settings_tests {
+    use super::*;
+    #[test]
+    fn saves_reloadable_mode_and_preserves_other_settings() {
+        let path = std::env::temp_dir().join(format!("dsh-tray-settings-{}.json", uuid::Uuid::new_v4()));
+        std::fs::write(&path, "\u{feff}{\"closeAction\":\"tray\",\"customDshPath\":\"test-path\"}").unwrap();
+        for mode in ["single", "double"] {
+            save_tray_click_action(&path, mode).unwrap();
+            let doc: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            assert_eq!(doc["trayClickAction"], mode);
+            assert_eq!(doc["customDshPath"], "test-path");
+        }
+        let before = std::fs::read(&path).unwrap();
+        assert!(save_tray_click_action(&path, "invalid").is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        std::fs::write(&path, "invalid JSON").unwrap();
+        assert!(save_tray_click_action(&path, "single").is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "invalid JSON");
+        std::fs::remove_file(path).unwrap();
+    }
+}
+
 /// Keep the main window above all others; applied live and restored on startup.
 pub(crate) fn always_on_top() -> bool {
     read_settings()
