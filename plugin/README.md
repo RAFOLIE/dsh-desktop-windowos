@@ -61,3 +61,19 @@ Restart DSH (`dsh web`) to activate. Requires Windows + Node ^22.19 or ≥ 24.
 ## Configuration
 
 See the table above; all keys are optional with those defaults.
+
+## 快捷方式配置 / Shortcut configuration
+
+本插件目前不提供 GUI 配置开关。编辑 `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml`（使用其他 profile 或 `DSH_HOME` 时替换对应路径），在现有 YAML 列表中合并下面的覆盖项。已有相同 id 时合并其 config，不要重复添加或覆盖整个文件：
+
+```yaml
+- id: dsh-desktop-plugin
+  name: dsh-desktop-plugin
+  config:
+    createShortcut: false
+    createWebShortcut: false
+```
+
+保存后重启 `dsh web` 生效。关闭配置只会停止创建/刷新，不会删除已有快捷方式；可自行删除桌面副本或移到开始菜单。配置开启时插件激活会创建/刷新桌面固定位置，移动副本不会改变这个行为。桌面 v1.6.52+ 会把已有的默认 Web 地址迁移为登录入口；本次源码修复使插件保留该迁移结果，旧 npm 1.5.12 仍可能重写裸地址，桌面运行时会修回。
+
+The plugin currently has no GUI configuration switches. Edit the profile's `cordis.patch.yml` at the path above (adjust for your profile or `DSH_HOME`), merging this entry into the existing list and merging `config` when the same id already exists. Restart `dsh web` after saving. Disabling creation does not delete existing shortcuts; remove or move them yourself. When enabled, plugin activation creates/refreshes the fixed desktop locations. Moving a copy does not disable recreation. The source fix preserves the desktop's migrated default login entry; published npm 1.5.12 can still overwrite it, which a running desktop repairs.

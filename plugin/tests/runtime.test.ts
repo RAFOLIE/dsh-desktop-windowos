@@ -28,6 +28,7 @@ const exePath = 'C:\\Apps\\dsh\\dsh-desktop-windowos.exe'
 function makeDeps(overrides: Partial<RuntimeDeps> = {}) {
   const calls = { launches: [] as string[], downloads: [] as string[] }
   const deps: RuntimeDeps = {
+    readFile: () => '',
     exists: () => false,
     mkdir: () => {},
     writeFile: () => {},

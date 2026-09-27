@@ -45,7 +45,7 @@ DeepSeek Harness(DSH)的 Windows 桌面壳,基于 **Tauri v2 + React 18 + TypeSc
 - **主题模式**:跟随系统 / 深色 / 浅色，桌面外壳即时切换；内嵌聊天的明暗模式重启后同步。
 - **六种界面语言实时切换**:设置 → 外观 → 语言(简体中文/繁體中文/English/日本語/한국어/Русский),整个壳界面与托盘菜单即时换语言、无需重启;**默认「跟随系统」**——启动时按 Windows 显示语言自动选择(简繁分流,未适配语言回退英文),也可手动指定;Rust 侧系统通知(更新流程/下载完成/任务完成)同步六语;新增语言只需一份字典(欢迎提 issue/PR)
 - **缩放与下载**:Ctrl +/-/0 与 Ctrl+滚轮缩放整个界面(焦点在内嵌页也生效);内嵌页面触发的下载(session log 导出等)统一落「下载」文件夹并弹系统通知
-- **桌面快捷方式可配置**:插件随激活创建「DeepSeek Harness」「DeepSeek Harness Web」两个桌面快捷方式;不想要的话在 DSH 插件设置里把 `createShortcut`/`createWebShortcut` 关掉即可(想把快捷方式挪去开始磁贴,先关开关再挪,免得下次激活时在桌面重建)
+- **桌面快捷方式可配置**：通过 profile 的 `cordis.patch.yml` 控制创建行为；本插件目前不提供 GUI 开关。见下方“快捷方式配置”。
 - **插件包自动同步(带验真)**:应用启动时自动把已安装的 dsh-desktop-plugin 对齐到 **npm 最新版**(只升不降,带 pnpm 新发布冷却期旁路);安装后回读 node_modules 验证真实落地,pnpm 冷却期静默保留旧版不再虚报成功
 - **图片拖放/粘贴**:与浏览器一致——可拖入或粘贴 png/jpg/webp/gif 作为对话附件(DSH v1 支持的四种格式)
 - **一键重启 DSH**:托盘「重启 dsh web(后端)」只重启 DSH 服务(会话数据在 `~/.dsh` 持久化);「前后端重启」连壳带后端全新拉起(无论后端是谁启动的都会清干净),新装插件随之加载,插件卡死 webchat 时一键满血——面板「更多」里也有同款
@@ -145,6 +145,8 @@ Ships as a **single portable bare exe** (~4.5 MB, no installer).
 
 The desktop auto-updater tracks the stable channel by default (the update center can switch it to prerelease or turn auto-update off); pre-releases are mainly for manual early adoption and test machines.
 
+Shortcut creation is configured in the profile YAML, not a GUI switch; see [Shortcut configuration](#快捷方式配置--shortcut-configuration).
+
 The default desktop Web shortcut is migrated by app v1.6.52+ on first launch. It opens the current authenticated web UI through the desktop app rather than a bare URL. Restart the desktop app once after upgrading; custom web URLs are preserved.
 
 ### Features
@@ -218,3 +220,20 @@ pnpm tauri build    # output: src-tauri\target\release\dsh-desktop-windowos.exe
 - The Rust side probes readiness via `POST /api/host.describe` (`result.ok === true`); launch runs a local-first candidate chain: `DSH_CMD` env var (first candidate, falls through on failure) → custom path from the boot page (persisted in `settings.json`) → `dsh web` (PATH-global, checked via `where dsh`) → `node_modules\.bin\dsh.cmd` (exe dir / working dir / user profile) → a previously consented `npx --yes @deepseek-ai/dsh web`; an empty chain emits `notfound` and the boot page offers a one-click `npm install -g` (run by the app), the npx fallback, and a manual path input — each candidate has its own readiness window, falls through on failure with every attempt logged; the DSH web child is spawned via `cmd /S /C` (CREATE_NO_WINDOW, absolute-path resolution); its output feeds a bounded in-memory tail (crash-cause visibility only, never written to the log file — DSH keeps its own logs under `~/.dsh/logs`, and the shell log records only shell events, rotated per session)
 - It listens on `ws://127.0.0.1:3080/api/events.host`; on a **true→false edge** of `running` in `host/session-status` while the window is hidden, it resolves the session title via `session.list` and fires the toast
 - A bare exe has no installer, so Windows would silently drop toasts — the app registers its AppUserModelID in the registry at startup (`HKCU\Software\Classes\AppUserModelId\com.dsh.desktop`) to make notifications work
+
+
+## 快捷方式配置 / Shortcut configuration
+
+本插件目前不提供 GUI 配置开关。编辑 `%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml`（使用其他 profile 或 `DSH_HOME` 时替换对应路径），在现有 YAML 列表中合并下面的覆盖项。已有相同 id 时合并其 config，不要重复添加或覆盖整个文件：
+
+```yaml
+- id: dsh-desktop-plugin
+  name: dsh-desktop-plugin
+  config:
+    createShortcut: false
+    createWebShortcut: false
+```
+
+保存后重启 `dsh web` 生效。关闭配置只会停止创建/刷新，不会删除已有快捷方式；可自行删除桌面副本或移到开始菜单。配置开启时插件激活会创建/刷新桌面固定位置，移动副本不会改变这个行为。桌面 v1.6.52+ 会把已有的默认 Web 地址迁移为登录入口；本次源码修复使插件保留该迁移结果，旧 npm 1.5.12 仍可能重写裸地址，桌面运行时会修回。
+
+The plugin currently has no GUI configuration switches. Edit the profile's `cordis.patch.yml` at the path above (adjust for your profile or `DSH_HOME`), merging this entry into the existing list and merging `config` when the same id already exists. Restart `dsh web` after saving. Disabling creation does not delete existing shortcuts; remove or move them yourself. When enabled, plugin activation creates/refreshes the fixed desktop locations. Moving a copy does not disable recreation. The source fix preserves the desktop's migrated default login entry; published npm 1.5.12 can still overwrite it, which a running desktop repairs.

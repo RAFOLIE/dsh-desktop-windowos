@@ -1957,6 +1957,7 @@ fn spawn_command(cmd: &str, cwd: &str) -> std::io::Result<(Child, std::sync::mps
     {
         command.arg("/C").arg(cmd);
     }
+    crate::explorer_compat::configure(&mut command)?;
     command.current_dir(cwd);
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
     apply_no_window(&mut command);

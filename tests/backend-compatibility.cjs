@@ -26,7 +26,7 @@ async function verify(version) {
   fs.writeFileSync(shim,`@node "%dp0%/${relative}" %*\r\n`);
   let child, browser, outer, output='', launch, stage='startup';
   try {
-    child = spawn(process.execPath,[path.join(cli,'lib/bin.js'),'web','--host','127.0.0.1','--port','0','--no-open'],{cwd:home,env:{...process.env,DSH_HOME:home},windowsHide:true});
+    child = spawn(process.execPath,[path.join(cli,'lib/bin.js'),'web','--host','127.0.0.1','--port','0','--no-open'],{cwd:home,env:{...process.env,DSH_HOME:home,NODE_OPTIONS:(process.env.NODE_OPTIONS || '')+' --require="'+path.resolve(__dirname,'../src-tauri/src/explorer-visibility.cjs').replaceAll('\\','/')+'"'},windowsHide:true});
     child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);
     const started = Date.now();
     while(Date.now()-started<120000) {

@@ -32,6 +32,7 @@ function makeDeps(overrides: Partial<InstallerDeps> = {}): InstallerDeps & {
   }
   return {
     calls,
+    readFile: () => '',
     exists: () => false,
     mkdir: dir => { calls.mkdir.push(dir) },
     writeFile: (path, data) => { calls.writeFile.push([path, data.length]) },
@@ -224,5 +225,28 @@ describe('download route chain and integrity', () => {
     expect(meta.version).toBe('1.5.10')
     expect(meta.size).toBe(64)
     expect(meta.digest).toBe('sha256:' + 'a'.repeat(64))
+  })
+})
+
+
+describe('migrated browser login shortcut', () => {
+  it('preserves the credential-free entry on activation', async () => {
+    const deps = makeDeps({ exists: () => true, readFile: () => '[InternetShortcut]\r\nURL=dsh-desktop-web://open\r\n' })
+    expect((await ensureWebShortcut(config, deps)).created).toBe(false)
+    expect(deps.calls.writeFile).toEqual([])
+  })
+  it('honors explicit custom URL even after migration', async () => {
+    const deps = makeDeps({ exists: () => true, readFile: () => '[InternetShortcut]\nURL=dsh-desktop-web://open\n' })
+    expect((await ensureWebShortcut(resolveConfig({webUrl:'http://localhost:4000/'}), deps)).created).toBe(true)
+    expect(deps.calls.writeFile).toHaveLength(1)
+  })
+  it('still refreshes a legacy default URL', async () => {
+    const deps = makeDeps({ exists: () => true, readFile: () => '[InternetShortcut]\nURL=http://127.0.0.1:3080\n' })
+    expect((await ensureWebShortcut(config, deps)).created).toBe(true)
+  })
+  it('does not read or write when creation is disabled', async () => {
+    const deps = makeDeps({ readFile: () => { throw new Error('unexpected read') } })
+    expect((await ensureWebShortcut(resolveConfig({createWebShortcut:false}), deps)).created).toBe(false)
+    expect(deps.calls.writeFile).toEqual([])
   })
 })

@@ -1,6 +1,7 @@
 //! App wiring: tray icon + menu, window close→hide, DSH lifecycle, and the
 //! task-completion event monitor.
 
+mod explorer_compat;
 mod dsh;
 mod startup_policy;
 mod backend_update;

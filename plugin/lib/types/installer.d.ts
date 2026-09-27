@@ -26,6 +26,7 @@ export declare function routeUrl(route: DownloadRoute, url: string): string;
 export declare function verifyBytes(bytes: Buffer, size: number, digest?: string): boolean;
 /** Fakeable host boundary; every effect the installer can take. */
 export interface InstallerDeps {
+    readFile(path: string): string;
     exists(path: string): boolean;
     mkdir(dir: string): void;
     writeFile(path: string, data: Buffer): void;

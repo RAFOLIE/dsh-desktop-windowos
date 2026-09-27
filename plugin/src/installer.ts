@@ -93,6 +93,7 @@ export function verifyBytes(bytes: Buffer, size: number, digest?: string): boole
 
 /** Fakeable host boundary; every effect the installer can take. */
 export interface InstallerDeps {
+  readFile(path: string): string
   exists(path: string): boolean
   mkdir(dir: string): void
   writeFile(path: string, data: Buffer): void
@@ -252,6 +253,7 @@ function psQuote(value: string): string {
 /** Production deps over node:fs, global fetch, curl, and PowerShell. */
 export function nodeDeps(): InstallerDeps {
   return {
+    readFile: path => fs.readFileSync(path, 'utf8'),
     exists: path => fs.existsSync(path),
     mkdir: dir => fs.mkdirSync(dir, { recursive: true }),
     writeFile: (path, data) => fs.writeFileSync(path, data),
@@ -386,6 +388,15 @@ export async function ensureWebShortcut(config: ResolvedConfig, deps: InstallerD
   const desktopDir = await deps.desktopDir()
   const name = safeFileName(config.webShortcutName)
   const urlPath = ensureWithin(desktopDir, `${desktopDir}\\${name}.url`)
+  // The desktop migrates the default URL to a credential-free login entry.
+  // Keep that entry on subsequent plugin activations, but honor explicit URLs.
+  if (/^http:\/\/127\.0\.0\.1:3080\/?$/.test(config.webUrl) && deps.exists(urlPath)) {
+    const existing = deps.readFile(urlPath)
+    if (/^\s*\[InternetShortcut\]\s*$/im.test(existing.replace(/^\uFEFF/, '')) &&
+        /^URL=dsh-desktop-web:\/\/open\s*$/im.test(existing)) {
+      return { path: urlPath, created: false }
+    }
+  }
   const lines = ['[InternetShortcut]', `URL=${config.webUrl}`]
   const exePath = exePathOf(config)
   if (deps.exists(exePath)) {
