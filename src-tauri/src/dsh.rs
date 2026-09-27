@@ -1467,7 +1467,7 @@ fn run_capture(program: &str, args: &[&str]) -> Option<String> {
 }
 
 /// Pid currently listening on the DSH port.
-fn port_listener_pid() -> Option<u32> {
+pub(crate) fn port_listener_pid() -> Option<u32> {
     let mut command = Command::new("netstat");
     command.args(["-ano", "-p", "tcp"]);
     apply_no_window(&mut command);

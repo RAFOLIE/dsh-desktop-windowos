@@ -200,7 +200,6 @@ pub fn source() -> Source {
     let owned = owner.as_ref().and_then(|o| o["owned"].as_bool()) == Some(true);
     if !owned {
         result.kind = "external".into();
-        return result;
     }
     let shim = dsh::where_first("dsh").map(PathBuf::from);
     result.managed = result.version.is_some()
@@ -223,6 +222,12 @@ fn validate_target(current: &str, target: &str, allow_downgrade: bool) -> Result
     }
 }
 
+// External instances need explicit consent tied to the process the user saw.
+fn authorized_source(source: &Source, expected_pid: u64, allow_external: bool) -> bool {
+    source.managed && expected_pid > 0 && source.pid == Some(expected_pid)
+        && (source.kind == "global" || (source.kind == "external" && allow_external))
+}
+
 fn verified_restart(before: &Source, after: &Source, target: &str, ready: bool) -> bool {
     ready
         && after.pid.is_some()
@@ -237,6 +242,8 @@ pub fn start(
     expected_path: String,
     expected_version: String,
     allow_downgrade: bool,
+    expected_pid: u64,
+    allow_external: bool,
 ) -> Result<Job, String> {
     // Parse even before creating a task; tags and command fragments are not accepted.
     semver::Version::parse(&target).map_err(|_| "Invalid target version")?;
@@ -269,6 +276,8 @@ pub fn start(
                 &expected_path,
                 &expected_version,
                 allow_downgrade,
+                expected_pid,
+                allow_external,
             )
         }));
         match result {
@@ -292,9 +301,11 @@ fn perform(
     expected_path: &str,
     expected_version: &str,
     allow_downgrade: bool,
+    expected_pid: u64,
+    allow_external: bool,
 ) -> Result<(), String> {
     let before = source();
-    if !before.managed
+    if !authorized_source(&before, expected_pid, allow_external)
         || before
             .path
             .as_deref()
@@ -324,20 +335,32 @@ fn perform(
         || again.pid != before.pid
         || again.path != before.path
         || again.version != before.version
+        || again.kind != before.kind
+        || again.prefix != before.prefix
     {
         return Err("Running instance changed; refresh and try again".into());
     }
     dsh::save_previous_version(expected_version)?;
     phase(app, "installing", None);
-    // Only stop the app-owned tree. Never clear an unrelated process that
-    // happened to claim the port between the source check and this operation.
-    dsh::teardown(app);
+    // Recheck the exact listener immediately before stopping it. Never kill
+    // whatever happens to occupy the port after this process exits.
+    if before.kind == "external" {
+        let owner = dsh::port_owner_info().ok_or("Backend disappeared; refresh and try again")?;
+        let live_path = owner["cmd"].as_str().and_then(package_path);
+        if owner["pid"].as_u64() != before.pid
+            || live_path.as_deref().is_none_or(|p| !same_path(p, Path::new(expected_path))) {
+            return Err("Running instance changed; installation was not started".into());
+        }
+        dsh::kill_tree(u32::try_from(expected_pid).map_err(|_| "Invalid backend PID")?);
+    } else {
+        dsh::teardown(app);
+    }
     let deadline = Instant::now() + Duration::from_secs(10);
-    while dsh::probe_ready_once() && Instant::now() < deadline {
+    while dsh::port_listener_pid().is_some() && Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(250));
     }
-    if dsh::probe_ready_once() {
-        return Err("The old backend is still running; installation was not started".into());
+    if dsh::port_listener_pid().is_some() {
+        return Err("The backend port is still occupied; installation was not started".into());
     }
     let prefix = before.prefix.as_deref().ok_or("Missing npm prefix")?;
     if let Some(j) = JOB.lock().unwrap().as_mut() { j.installation_started = true; }
@@ -369,6 +392,20 @@ fn perform(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn external_update_requires_consent_and_same_process() {
+        let mut source = Source { kind: "external".into(), managed: true, pid: Some(42), ..Default::default() };
+        assert!(!authorized_source(&source, 42, false));
+        assert!(authorized_source(&source, 42, true));
+        assert!(!authorized_source(&source, 43, true));
+        source.managed = false;
+        assert!(!authorized_source(&source, 42, true));
+        source.managed = true;
+        source.kind = "custom".into();
+        assert!(!authorized_source(&source, 42, true));
+        source.kind = "global".into();
+        assert!(authorized_source(&source, 42, false));
+    }
     #[test]
     fn rc_order_and_downgrade_gate() {
         assert!(validate_target("0.1.5-rc.2", "0.1.5-rc.1", false).is_err());

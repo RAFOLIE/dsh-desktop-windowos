@@ -82,14 +82,14 @@ export default function BackendUpdate({ onChanged, onViewLogs }: { onChanged: ()
       if (!mounted.current) return;
       setSource(current);
       const order = versionRelation(current.version, selected);
-      if (!current.managed || !current.path || !current.version || !["newer", "ahead"].includes(order)) {
+      if (!current.managed || !current.path || !current.version || !current.pid || !["newer", "ahead"].includes(order)) {
         setNotice(progress.sourceChanged); void refresh(); return;
       }
       const allowDowngrade = retryTarget ? order === "ahead" : downgrade;
       const message = (allowDowngrade ? text.confirmDowngrade : text.confirmUpdate)
-        .replace("{from}", current.version).replace("{to}", selected) + "\n\n" + current.path + (needsSettingsMigration(current.version, selected) ? "\n\n" + compatibility.migration : "");
+        .replace("{from}", current.version).replace("{to}", selected) + "\n\n" + current.path + (current.kind === "external" ? "\n\n" + compatibility.external : "") + (needsSettingsMigration(current.version, selected) ? "\n\n" + compatibility.migration : "");
       if (!window.confirm(message)) return;
-      const accepted = await invoke<BackendJob>("dsh_backend_upgrade", { target: selected, expectedPath: current.path, expectedVersion: current.version, allowDowngrade });
+      const accepted = await invoke<BackendJob>("dsh_backend_upgrade", { target: selected, expectedPath: current.path, expectedVersion: current.version, expectedPid: current.pid, allowExternal: current.kind === "external", allowDowngrade });
       if (mounted.current) { jobGeneration.current++; setJob(accepted); }
     } catch (error) { if (mounted.current) setNotice(String(error)); }
     finally { submitGuard.current = false; if (mounted.current) setSubmitting(false); }
@@ -121,6 +121,7 @@ export default function BackendUpdate({ onChanged, onViewLogs }: { onChanged: ()
         <button className="ep-primary" disabled={!canInstall || relation !== "newer"} onClick={() => void start(false)}>{relation === "newer" && target ? text.updateTo.replace("{to}", target) : text.update}</button>
       </div>
     </div>
+    {!checking && source?.managed && source.kind === "external" && <p role="note" className="ep-row-description bu-guidance">{compatibility.external}</p>}
     {!checking && !source?.managed && <p className="ep-row-description bu-guidance">{text.unmanaged} {source?.kind === "local" ? text.localHelp : source?.kind === "npx" ? text.npxHelp : source?.kind === "external" ? text.externalHelp : source?.kind === "custom" ? text.customHelp : text.unknownHelp}</p>}
     {relation === "ahead" && !checking && <details className="bu-advanced"><summary>{text.downgrade}</summary><p>{text.downgradeHelp}</p><button className="ep-secondary" disabled={!canInstall} onClick={() => void start(true)}>{text.downgradeTo.replace("{to}", target ?? "")}</button></details>}
     {job && <div role="status" className={'bu-job ' + job.phase}>

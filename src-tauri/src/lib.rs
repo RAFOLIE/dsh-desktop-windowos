@@ -299,8 +299,8 @@ async fn dsh_backend_source() -> Result<backend_update::Source, String> {
 #[tauri::command]
 fn dsh_backend_update_status() -> Option<backend_update::Job> { backend_update::status() }
 #[tauri::command]
-fn dsh_backend_upgrade(app: AppHandle, target: String, expected_path: String, expected_version: String, allow_downgrade: bool) -> Result<backend_update::Job, String> {
-    backend_update::start(app, target, expected_path, expected_version, allow_downgrade)
+fn dsh_backend_upgrade(app: AppHandle, target: String, expected_path: String, expected_version: String, allow_downgrade: bool, expected_pid: u64, allow_external: bool) -> Result<backend_update::Job, String> {
+    backend_update::start(app, target, expected_path, expected_version, allow_downgrade, expected_pid, allow_external)
 }
 
 /// Roll back the global dsh to the version saved before the last upgrade.
