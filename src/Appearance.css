@@ -10,8 +10,8 @@ html[data-theme] :is(.tb-pill,.btn-secondary,.path-input,.ep-pill,.ep-help,.ep-s
 html[data-theme] :is(.tb-pill:hover,.ep-select-option:hover,.ep-menu button:hover,.btn-secondary:hover,.ep-secondary:hover,.ep-tool-btn:hover) { background:var(--ep-hover); color:var(--ep-text); border-color:var(--ep-line); }
 html[data-theme] :is(.tb-pill.open,.ep-help.open,.ep-select-option.selected,.ep-pill.active,.ep-pill-sm.active) { background:var(--ep-hover); color:var(--ep-text); border-color:var(--accent); }
 html[data-theme] :is(.tb-btn,.tb-pill-chevron,.detail,.ep-select-desc,.ep-select-desc-below,.ep-hint-inline,.ep-select-empty) { color:var(--ep-muted); }
-html[data-theme] :is(.tb-btn:hover,.ep-select-search:focus) { background:var(--ep-hover); color:var(--ep-text); }
-html[data-theme] .tb-btn.tb-close:hover { background:#c42b1c; color:white; }
+html[data-theme] :is(.tb-btn.is-hovered,.ep-select-search:focus) { background:var(--ep-hover); color:var(--ep-text); }
+html[data-theme] .tb-btn.tb-close.is-hovered { background:#c42b1c; color:white; }
 html[data-theme] :is(.ep-primary,.ep-primary:hover,.ep-switch.on,.ep-switch.on:hover,.btn-primary) { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
 html[data-theme] :is(.ep-switch:not(.on),.ep-switch:not(.on):hover) { background:var(--ep-line); }
 html[data-theme] :is(.ep-version-num,.boot-log-link,.tb-pill.open .tb-pill-chevron) { color:var(--accent); }

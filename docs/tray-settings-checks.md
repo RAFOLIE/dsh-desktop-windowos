@@ -11,3 +11,9 @@ Verification:
 - pnpm tauri build creates the production executable with its normal Tauri manifest and embedded assets.
 
 The new desktop executable is synced locally after verification; existing user processes/backends are not forcibly restarted. No release or issue comment is made as part of this local implementation.
+
+## v1.6.69 hover regression
+
+Issue #15 reporter and local screenshot show the minimize control retaining its gray hover fill after tray restoration, until pointer motion. Window controls now use explicit pointer-driven highlight state instead of CSS :hover. The click handler flushes the cleared state before invoking the native window operation. Blur, visibility changes, pointer leave and cancellation clear it; fresh pointer entry/motion restores it. Keyboard focus-visible styling is unchanged.
+
+Run node tests/titlebar-hover-ui.cjs with Vite on port 1420 and PLAYWRIGHT_MODULE configured. The test intentionally leaves the pointer over each clicked control so CSS :hover remains true, verifies transparent background despite that stale state, verifies native command dispatch and subsequent pointer highlighting/blur clearing in both actual theme token sets. Screenshots inspected. Native commands are mocked in this UI regression; physical tray restoration with this new build remains a manual check. No native restoration logic changed.

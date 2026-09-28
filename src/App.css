@@ -259,7 +259,8 @@ input:focus-visible {
   flex: none;
 }
 
-.tb-btn {
+.tb-btn,
+.tb-btn:hover {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -278,12 +279,12 @@ input:focus-visible {
   height: 10px;
 }
 
-.tb-btn:hover {
+.tb-btn.is-hovered {
   background: var(--ep-line);
   color: var(--ep-text);
 }
 
-.tb-close:hover {
+.tb-close.is-hovered {
   background: #e81123;
   color: #fff;
 }

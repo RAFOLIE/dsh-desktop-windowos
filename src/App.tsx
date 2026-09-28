@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { flushSync } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import appIcon from "./assets/app-icon.png";
@@ -517,6 +518,31 @@ function TitleBar({
 }) {
   const { t } = useI18n();
   const [maximized, setMaximized] = useState(false);
+  const [hoveredControl, setHoveredControl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const clear = () => setHoveredControl(null);
+    window.addEventListener("blur", clear);
+    document.addEventListener("visibilitychange", clear);
+    return () => {
+      window.removeEventListener("blur", clear);
+      document.removeEventListener("visibilitychange", clear);
+    };
+  }, []);
+
+  const controlProps = (command: string) => ({
+    // WebView2 can retain CSS :hover while hidden. Clear before the native
+    // operation; only fresh pointer input may highlight the control again.
+    onPointerEnter: () => setHoveredControl(command),
+    onPointerMove: () => setHoveredControl(command),
+    onPointerLeave: () => setHoveredControl(null),
+    onPointerCancel: () => setHoveredControl(null),
+    onClick: () => {
+      flushSync(() => setHoveredControl(null));
+      invoke(command).catch(() => {});
+    },
+  });
+
 
   useEffect(() => {
     const sync = () => {
@@ -589,9 +615,9 @@ function TitleBar({
 
       <button
         type="button"
-        className="tb-btn"
+        className={`tb-btn${hoveredControl === "window_minimize" ? " is-hovered" : ""}`}
         title={t("tb.minimize")}
-        onClick={() => invoke("window_minimize").catch(() => {})}
+        {...controlProps("window_minimize")}
       >
         <svg viewBox="0 0 10 10" aria-hidden="true">
           <rect x="0.5" y="4.75" width="9" height="1" fill="currentColor" />
@@ -599,9 +625,9 @@ function TitleBar({
       </button>
       <button
         type="button"
-        className="tb-btn"
+        className={`tb-btn${hoveredControl === "window_toggle_maximize" ? " is-hovered" : ""}`}
         title={maximized ? t("tb.restore") : t("tb.maximize")}
-        onClick={() => invoke("window_toggle_maximize").catch(() => {})}
+        {...controlProps("window_toggle_maximize")}
       >
         {maximized ? (
           <svg viewBox="0 0 10 10" aria-hidden="true">
@@ -616,9 +642,9 @@ function TitleBar({
       </button>
       <button
         type="button"
-        className="tb-btn tb-close"
+        className={`tb-btn tb-close${hoveredControl === "window_close" ? " is-hovered" : ""}`}
         title={t("tb.closeHint")}
-        onClick={() => invoke("window_close").catch(() => {})}
+        {...controlProps("window_close")}
       >
         <svg viewBox="0 0 10 10" aria-hidden="true">
           <path d="M0.8 0.8 9.2 9.2 M9.2 0.8 0.8 9.2" stroke="currentColor" strokeWidth="1.1" fill="none" />
