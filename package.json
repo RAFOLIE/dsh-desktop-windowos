@@ -44,7 +44,8 @@
     "tauri": "tauri",
     "test:appearance": "node --experimental-strip-types --test tests/appearance-model.test.mjs",
     "test:backend-update": "node --experimental-strip-types --test tests/backend-update-model.test.mjs",
-    "test:backend-compatibility": "node tests/backend-compatibility.cjs"
+    "test:backend-compatibility": "node tests/backend-compatibility.cjs",
+    "test:link-open": "node tests/link-open-once-ui.cjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
