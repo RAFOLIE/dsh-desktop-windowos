@@ -769,6 +769,12 @@ fn startup_report(app: &AppHandle, value: Value) {
     if let Ok(mut state) = START_STATUS.lock() { *state = Some(value.clone()); }
     let _ = app.emit("dsh-status", value);
 }
+/// Last status reported to the shell frontend (see `startup_report`).
+/// `None` until the first report — a freshly (re)loaded page pulls this
+/// instead of depending on having caught the original event.
+pub(crate) fn current_status() -> Option<Value> {
+    START_STATUS.lock().ok().and_then(|s| s.clone())
+}
 fn startup_progress(app: &AppHandle, candidate: &Candidate, started: Instant, phase: &str) {
     startup_report(app, json!({"status":"starting", "method":candidate.label,
         "phase":phase, "elapsed":started.elapsed().as_secs(), "budget":candidate.window.as_secs()}));

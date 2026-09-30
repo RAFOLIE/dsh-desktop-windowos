@@ -33,6 +33,12 @@ fn window_shell_ready(app: tauri::AppHandle) { reveal_shell(&app); }
 #[tauri::command]
 fn app_web_open_status() -> String { web_shortcut::status() }
 
+/// Pull half of the status contract: `dsh-status` is push-only and the reload
+/// re-push can be missed, so a freshly (re)loaded page asks for the last report
+/// instead of waiting on an event it can no longer catch.
+#[tauri::command]
+fn dsh_current_status() -> serde_json::Value { dsh::current_status().unwrap_or(serde_json::Value::Null) }
+
 /// Frontend-invoked retry after a failed start.
 #[tauri::command]
 fn dsh_retry(app: AppHandle) {
@@ -635,7 +641,7 @@ pub fn run() {    tauri::Builder::default()
         }))
         .plugin(tauri_plugin_opener::init())
         .manage(dsh::DshState::new())
-        .invoke_handler(tauri::generate_handler![window_shell_ready, app_web_open_status, dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_source, dsh_backend_update_status, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, dsh_webchat_url, dsh_rollback_dsh, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_tray_click_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
+        .invoke_handler(tauri::generate_handler![window_shell_ready, app_web_open_status, dsh_current_status, dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_source, dsh_backend_update_status, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, dsh_webchat_url, dsh_rollback_dsh, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_tray_click_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
         .setup(|app| {
             // Session-start log rotation (ComfyUI-style) before anything logs
             // or spawns: previous session archived under a timestamped name.
