@@ -110,14 +110,25 @@ pub(crate) const MENU_SCRIPT: &str = r#"
     e.stopPropagation();
     showMenu(e.clientX, e.clientY, a.href);
   }, true);
-  // Left-click backstop for external links (issue #7): route http(s) anchors
-  // to the system browser ourselves. target=_blank anchors are intercepted
-  // TOO (no exemption): on v1.6.44 a user proved market links with
+  // Backstop for external links the page does not open itself (issue #7):
+  // route http(s) anchors to the system browser. target=_blank anchors are
+  // intercepted TOO (no exemption): on v1.6.44 a user proved market links with
   // target=_blank are dead in-shell — WebView2 does not reliably raise the
   // new-window path for them, while window.open demonstrably works (the
-  // right-click menu uses it). preventDefault cancels the (broken) native
-  // activation, so no double-open.
-  document.addEventListener('click', function (e) {
+  // right-click menu uses it).
+  //
+  // BUBBLE on window, not capture on document — the last stop in the
+  // propagation path, so the page's own handlers have already run. That is
+  // what makes the defaultPrevented guard above mean what it says: the webchat
+  // page owns its links (MarkdownAnchor in dsh-client-ui-primitives calls
+  // preventDefault() and then openExternalLink, which window.opens), so the
+  // shell yields to whatever policy the page applied — including its
+  // open-in-sidebar preference, which a shell-side interceptor silently
+  // overrode. In capture on document this guard was dead code: it ran before
+  // the page could preventDefault, so every markdown link fired window.open
+  // twice and lib.rs's on_new_window opened the browser twice. Two owners, one
+  // click, two identical tabs. Tests: tests/link-open-once-ui.cjs.
+  window.addEventListener('click', function (e) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
     if (!a) return;
@@ -126,7 +137,7 @@ pub(crate) const MENU_SCRIPT: &str = r#"
     if (location.origin && href.toLowerCase().indexOf(location.origin.toLowerCase()) === 0) return;
     e.preventDefault();
     openInBrowser(a.href);
-  }, true);
+  });
   document.addEventListener('mousedown', function (e) {
     if (menu && !menu.contains(e.target)) closeMenu();
   }, true);
