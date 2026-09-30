@@ -93,6 +93,10 @@ function App() {
   // starting→ready edge (re)mounts or reloads the webchat iframe.
   const wasReady = useRef(false);
   const mountedRef = useRef(false);
+  /** A real `dsh-status` event has been applied since mount. The mount-time
+   *  pull is a point-in-time snapshot, so once an event has landed that pull
+   *  is stale by definition and must not be applied. */
+  const sawStatusEvent = useRef(false);
   // Focus returns here when the panel closes (spec: keyboard flow).
   const nameBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -120,6 +124,44 @@ function App() {
       return WEBCHAT_URL;
     }
   }, []);
+
+  /** The single owner of the `dsh-status` transition. Both the event listener
+   *  and the mount-time `dsh_current_status` pull land here, so a reloaded
+   *  page reconciles against the shell's last known status instead of
+   *  depending on one more push. `fromEvent` marks a push as applied, which
+   *  is what makes a later pull stale. */
+  const applyStatus = useCallback(
+    async (next: DshStatus, fromEvent: boolean) => {
+      if (fromEvent) sawStatusEvent.current = true;
+      setStatus(next);
+      if (next.status === "ready") {
+        if (!wasReady.current) {
+          wasReady.current = true;
+          setAuthHint(false);
+          // Adapt to the backend's auth model BEFORE the iframe loads
+          // (v1.6.49): pre-0.1.2 dsh serves the plain URL, BrowserAuth
+          // builds (0.1.2+) need the Rust-side token exchange + WebView2
+          // cookie plant first — mounting early would land on their 401
+          // page. Resolved per ready edge so a restarted backend's fresh
+          // token is picked up; the race cap keeps a wedged resolver from
+          // ever holding the handoff.
+          const url = await resolveWebchatUrl();
+          setWebchatSrc(url);
+          if (mountedRef.current) {
+            setReloadKey((key) => key + 1);
+          } else {
+            mountedRef.current = true;
+            setWebchatMounted(true);
+          }
+          // The port owner / pid facts only mean something once DSH is up.
+          refreshEnv();
+        }
+      } else {
+        wasReady.current = false;
+      }
+    },
+    [refreshEnv, resolveWebchatUrl],
+  );
 
   // Prefetch once on mount.
   useEffect(() => {
@@ -179,33 +221,8 @@ function App() {
     let cancelled = false;
 
     (async () => {
-      unlistenStatus = await listen<DshStatus>("dsh-status", async (event) => {
-        setStatus(event.payload);
-        if (event.payload.status === "ready") {
-          if (!wasReady.current) {
-            wasReady.current = true;
-            setAuthHint(false);
-            // Adapt to the backend's auth model BEFORE the iframe loads
-            // (v1.6.49): pre-0.1.2 dsh serves the plain URL, BrowserAuth
-            // builds (0.1.2+) need the Rust-side token exchange + WebView2
-            // cookie plant first — mounting early would land on their 401
-            // page. Resolved per ready edge so a restarted backend's fresh
-            // token is picked up; the race cap keeps a wedged resolver from
-            // ever holding the handoff.
-            const url = await resolveWebchatUrl();
-            setWebchatSrc(url);
-            if (mountedRef.current) {
-              setReloadKey((key) => key + 1);
-            } else {
-              mountedRef.current = true;
-              setWebchatMounted(true);
-            }
-            // The port owner / pid facts only mean something once DSH is up.
-            refreshEnv();
-          }
-        } else {
-          wasReady.current = false;
-        }
+      unlistenStatus = await listen<DshStatus>("dsh-status", (event) => {
+        void applyStatus(event.payload, true);
       });
       unlistenUpdate = await listen<AppUpdate>("app-update", (event) => {
         setUpdate(event.payload);
@@ -220,6 +237,17 @@ function App() {
         setAuthHint(true);
       });
       unlistenWebOpen = await listen<string>("web-open-status", event => setWebOpenStatus(event.payload));
+      // Reload reconciliation: the shell re-pushes the status once per page
+      // load, fire-and-forget with no ack. When that one push is lost, a
+      // reloaded page sits on 「正在启动 DSH…」 forever while a healthy
+      // backend sits behind it. Pull the last status instead of betting on
+      // the push — but only while no event has landed, so a slow answer can
+      // never clobber a newer one. Registered-after-listen is what makes the
+      // pull safe; a null/rejected answer simply keeps the current state.
+      const pulled = await invoke<DshStatus | null>("dsh_current_status").catch(() => null);
+      if (!cancelled && pulled && !sawStatusEvent.current) {
+        await applyStatus(pulled, false);
+      }
       const webStatus = await invoke<string>("app_web_open_status").catch(() => "idle");
       if (!cancelled) setWebOpenStatus(webStatus || "idle");
       if (cancelled) {
@@ -239,7 +267,7 @@ function App() {
       unlistenAuthHint?.();
       unlistenWebOpen?.();
     };
-  }, [refreshEnv, resolveWebchatUrl]);
+  }, [applyStatus, refreshEnv, resolveWebchatUrl]);
 
   // Fuse: if the update events never arrive (very old build, IPC hiccup),
   // stop holding the handoff on `pending` — startup must never hang.
