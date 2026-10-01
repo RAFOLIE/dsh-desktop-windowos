@@ -1012,6 +1012,66 @@ const CHILD_TAIL_CAP: usize = 60;
 /// signing secret in ~/.dsh/.credentials.yaml is persistent).
 static LAUNCH_TOKEN: Mutex<Option<String>> = Mutex::new(None);
 
+/// The browser-session cookie minted by the launch-token exchange, kept for
+/// non-webview consumers: the session monitor's mux WebSocket and its
+/// session/list title lookup authenticate with a `Cookie:` header (issue #18 —
+/// the exchange used to feed only the WebView2 jar, so every Rust-side /api
+/// call stayed unauthenticated and session toasts silently never fired).
+/// Also persisted beside the marker so a shell restart still sees the cookie
+/// the webview keeps in its own jar (attach mode mints none of its own).
+/// Same trust domain as dsh's own persistent token in ~/.dsh/.credentials.yaml.
+static SESSION_COOKIE: Mutex<Option<(String, String, u64)>> = Mutex::new(None);
+
+fn planted_cookie_store_path() -> std::path::PathBuf {
+    planted_cookie_marker_path()
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("webauth-session.cookie")
+}
+
+/// Remember an exchanged `dsh-auth-…` cookie for Rust-side /api consumers
+/// (memory + `%LOCALAPPDATA%\dsh-desktop\webauth-session.cookie`, two lines:
+/// `name=value` and the unix expiry). Best effort on both paths.
+fn store_session_cookie(cookie: &SessionCookie) {
+    let expires_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs().saturating_add(cookie.max_age))
+        .unwrap_or(0);
+    if let Ok(mut slot) = SESSION_COOKIE.lock() {
+        *slot = Some((cookie.name.clone(), cookie.value.clone(), expires_at));
+    }
+    let _ = std::fs::write(
+        planted_cookie_store_path(),
+        format!("{}={}\n{}\n", cookie.name, cookie.value, expires_at),
+    );
+}
+
+/// `name=value` for a `Cookie:` header — the in-memory exchange result when
+/// fresh, else the persisted one from a previous run of this or an earlier
+/// shell process (the signing secret is persistent, so the cookie outlives
+/// both processes). None when we never exchanged or the stored one expired.
+pub(crate) fn session_cookie_pair() -> Option<String> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    if let Ok(slot) = SESSION_COOKIE.lock() {
+        if let Some((name, value, expires_at)) = slot.as_ref() {
+            if *expires_at > now {
+                return Some(format!("{name}={value}"));
+            }
+        }
+    }
+    let text = std::fs::read_to_string(planted_cookie_store_path()).ok()?;
+    let mut lines = text.lines();
+    let pair = lines.next()?.trim().to_string();
+    let expires_at = lines.next()?.trim().parse::<u64>().ok()?;
+    let valid = expires_at > now
+        && pair.starts_with("dsh-auth-")
+        && pair.split_once('=').is_some_and(|(n, v)| !n.is_empty() && v.len() >= 24);
+    valid.then_some(pair)
+}
+
 /// Prefix of the announce line; the token is the base64url run that follows.
 /// Matched by `find` (not strip_prefix) so console noise around the line or
 /// the LAN-hint suffix cannot hide it.
@@ -2424,8 +2484,13 @@ pub fn webchat_auth_flow(app: &AppHandle) -> String {
             let header = response
                 .as_ref()
                 .and_then(|resp| resp.header("set-cookie"));
-            let planted = header
-                .and_then(parse_session_cookie)
+            let exchanged = header.and_then(parse_session_cookie);
+            // The minted cookie is valid server-side regardless of whether the
+            // webview plant succeeds — keep it for the session monitor (#18).
+            if let Some(cookie) = &exchanged {
+                store_session_cookie(cookie);
+            }
+            let planted = exchanged
                 .is_some_and(|cookie| inject_webview2_cookie(app, &cookie));
             if planted {
                 supervision_log("webchat auth: launch token exchanged, session cookie planted");

@@ -108,7 +108,7 @@ pnpm tauri build    # 产物:src-tauri\target\release\dsh-desktop-windowos.exe
 ### 工作原理
 
 - Rust 侧以 `POST /api/host.describe` 探测就绪(`result.ok === true` 即就绪);启动走本地优先候选链:`DSH_CMD` 环境变量(失败自动降级)→ 自定义路径 → `dsh web`(PATH 全局)→ 项目本地 `node_modules\.bin\dsh.cmd` → 已确认过的 npx;链空则发 `notfound` 事件,启动页提供一键 `npm install -g`、npx 备选、路径输入;每个候选独立就绪窗口,失败自动降级并逐次入日志;DSH web 子进程经 `cmd /S /C` 拉起(`CREATE_NO_WINDOW`,绝对路径解析),其输出进**有界内存尾部**(仅崩溃原因可见用,不写日志文件;DSH 有自己的 `~/.dsh/logs`,壳日志只记自身事件并按会话轮转)
-- 监听 `ws://127.0.0.1:3080/api/events.host`,在 `host/session-status` 的 `running` 出现 **true→false 边沿**且主窗口隐藏时,经 `session.list` 取会话标题弹通知
+- 监听 `ws://127.0.0.1:3080/api/remote.mux` 上的 `$events` 事件流(携带 webchat 登录换取的浏览器会话 cookie,适配 dsh 0.1.2+ BrowserAuth),在 `api-session/status` 的 `running` 出现 **true→false 边沿**且主窗口隐藏时,经 `session/list` 取会话标题弹通知
 - 裸 exe 无安装器,Windows 会静默吞 Toast——应用启动时自动在注册表注册 AppUserModelID(`HKCU\Software\Classes\AppUserModelId\com.dsh.desktop`)保证通知可达
 
 ### 项目结构
@@ -118,7 +118,7 @@ src/                 React 常驻壳:自绘顶栏 + boot 视图 + webchat iframe
   EnvPanel.tsx       环境管理面板(搜索/环境|日志|更新标签/信息卡/日志控制台/更新中心)
 src-tauri/src/
   dsh.rs             DSH 生命周期:探测 / spawn / 监护自愈 / 会话日志(轮转+等级)
-  monitor.rs         events.host WS 监听:running 边沿 + 两按钮通知 + 断线重连
+  monitor.rs         remote.mux $events 流监听:running 边沿 + 两按钮通知 + 断线重连
   update.rs          自更新(多路由下载+完整性校验) / 插件同步 / 完整重启
   lib.rs             托盘、窗口 X=隐藏、single-instance、AUMID 注册、面板命令
 plugin/              DSH 插件(npm: dsh-desktop-plugin):自动安装/升级 exe + 双快捷方式 + desktop_launch 工具
@@ -218,7 +218,7 @@ pnpm tauri build    # output: src-tauri\target\release\dsh-desktop-windowos.exe
 ### How it works
 
 - The Rust side probes readiness via `POST /api/host.describe` (`result.ok === true`); launch runs a local-first candidate chain: `DSH_CMD` env var (first candidate, falls through on failure) → custom path from the boot page (persisted in `settings.json`) → `dsh web` (PATH-global, checked via `where dsh`) → `node_modules\.bin\dsh.cmd` (exe dir / working dir / user profile) → a previously consented `npx --yes @deepseek-ai/dsh web`; an empty chain emits `notfound` and the boot page offers a one-click `npm install -g` (run by the app), the npx fallback, and a manual path input — each candidate has its own readiness window, falls through on failure with every attempt logged; the DSH web child is spawned via `cmd /S /C` (CREATE_NO_WINDOW, absolute-path resolution); its output feeds a bounded in-memory tail (crash-cause visibility only, never written to the log file — DSH keeps its own logs under `~/.dsh/logs`, and the shell log records only shell events, rotated per session)
-- It listens on `ws://127.0.0.1:3080/api/events.host`; on a **true→false edge** of `running` in `host/session-status` while the window is hidden, it resolves the session title via `session.list` and fires the toast
+- It listens to the gateway's `$events` logical stream on `ws://127.0.0.1:3080/api/remote.mux`, authenticated with the browser-session cookie from the webchat login exchange (dsh 0.1.2+ BrowserAuth, issue #18); on a **true→false edge** of `running` in `api-session/status` while the window is hidden, it resolves the session title via `session/list` and fires the toast
 - A bare exe has no installer, so Windows would silently drop toasts — the app registers its AppUserModelID in the registry at startup (`HKCU\Software\Classes\AppUserModelId\com.dsh.desktop`) to make notifications work
 
 
