@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } fr
 import { flushSync } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { installDirectoryPickerBridge } from "./directoryPickerBridge";
 import appIcon from "./assets/app-icon.png";
 import EnvPanel, { type EnvInfo } from "./EnvPanel";
 import {
@@ -55,6 +56,8 @@ type Overlay = null | "env" | "log" | "settings";
  *  losing chat state. Env facts are prefetched at startup so the panel opens
  *  instantly. */
 function App() {
+  const webchatRef = useRef<HTMLIFrameElement>(null);
+  useEffect(() => installDirectoryPickerBridge(() => webchatRef.current), []);
   const [status, setStatus] = useState<DshStatus>({ status: "starting" });
   // Locale: paint an instant navigator-based guess, then override with the
   // Rust-resolved locale ("system" = Windows UI language, single source of
@@ -324,6 +327,7 @@ function App() {
         )}
         {webchatMounted && (
           <iframe
+            ref={webchatRef}
             key={reloadKey}
             src={webchatSrc}
             className="webchat"

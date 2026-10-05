@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.6.71 — 2026-10-05 【本地候选，待原环境复测】
+
+- #18：避免重复会话信息清空运行状态；最小化/后台窗口可接收完成通知，修复逻辑事件流报错后的重连与退避，补充通知诊断并正确跳过交互事件。
+- #19：通过官方目录选择钩子调用有主窗口归属的原生目录选择器，保留页面与草稿，不向远程网页开放通用 Tauri 权限。
+- 原报告者环境尚待复测，不能据此关闭 Issue。验证范围见 docs/issues-18-19-checks.md。
+
 ## v1.6.70 — 2026-10-01 【预发布版】
 
 - Issue #18：会话完成通知恢复可用。monitor 适配 dsh 0.1.2+ 的 BrowserAuth 与 `/api/remote.mux` 事件流：握手携带登录换取的会话 cookie，打开 `$events` 逻辑流，按新事件名 `api-session/status`（以及 added/removed 维护基线）判定 running true→false 边沿；标题查询改走 `session/list` 新端点与 `args._request` 参数。此前通知自 dsh 0.1.2 起静默失效（旧 events.host 端点已删除，且 401-only 的分类器连断连日志都不会写）。

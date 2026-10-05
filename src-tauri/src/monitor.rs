@@ -1,5 +1,5 @@
 //! Listens to the DSH web event stream and fires a Windows notification when a
-//! session finishes (running true→false) while the main window is hidden.
+//! session finishes (running true→false) while the main window is hidden, minimized or not focused.
 //!
 //! dsh 0.1.2 moved every Remote stream onto one mux WebSocket
 //! (`/api/remote.mux`, issue #18) behind BrowserAuth: the shell exchanges the
@@ -30,7 +30,7 @@ const DSH_BASE: &str = "http://127.0.0.1:3080";
 #[derive(Debug, PartialEq, Eq)]
 enum SessionEvent {
     Status { session_id: String, running: bool },
-    Added { session_id: String },
+    Added { session_id: String, running: Option<bool> },
     Removed { session_id: String },
 }
 
@@ -40,6 +40,9 @@ enum SessionEvent {
 enum FrameOutcome {
     Event(SessionEvent),
     End,
+    Ready(String),
+    Passive(String),
+    Failed,
     Ignore,
 }
 
@@ -112,7 +115,7 @@ pub fn run(app: AppHandle) {
             Duration::from_secs(15)
         } else {
             // Backoff: 0.5s, 1s, 2s, 4s, 8s, capped at 10s.
-            let exp = (attempt - 1).min(4);
+            let exp = attempt.saturating_sub(1).min(4);
             Duration::from_millis((500u64 * 2u64.pow(exp)).min(10_000))
         };
         thread::sleep(delay);
@@ -151,8 +154,9 @@ fn connect_and_listen(
         "endpoint": "$events",
         "payload": { "args": {} }
     });
-    socket.write_message(Message::text(open.to_string()))?;
+    socket.send(Message::text(open.to_string()))?;
     socket.flush()?;
+    let mut client_id = None;
     loop {
         match socket.read()? {
             Message::Text(text) => match frame_outcome(&text, &stream_id) {
@@ -161,6 +165,22 @@ fn connect_and_listen(
                         on_task_finished(app, &finished);
                     }
                 }
+                FrameOutcome::Ready(id) => {
+                    client_id = Some(id);
+                    crate::dsh::log_write(crate::dsh::LogLevel::Info, "monitor: event stream ready");
+                },
+                FrameOutcome::Passive(event_id) => {
+                    let id = client_id.as_deref().ok_or("event arrived before ready")?;
+                    // A notification observer must decline interactive waterfall
+                    // events, otherwise it can hold up the real web client's flow.
+                    ureq::post(&format!("{DSH_BASE}/api/$events/result"))
+                        .set("Origin", HOST_ORIGIN).set("Cookie", cookie)
+                        .timeout(Duration::from_secs(3))
+                        .send_json(json!({"type":"client-request","rpcId":Uuid::new_v4().to_string(),"method":"$events/result",
+                            "payload":{"args":{"clientId":id,"eventId":event_id,"outcome":{"kind":"next"}}}}))
+                        .map_err(|_| "unable to decline non-notification event")?;
+                },
+                FrameOutcome::Failed => return Err("logical event stream rejected".into()),
                 FrameOutcome::End => break,
                 FrameOutcome::Ignore => {}
             },
@@ -179,6 +199,9 @@ fn frame_outcome(text: &str, stream_id: &str) -> FrameOutcome {
         return FrameOutcome::Ignore;
     };
     let frame_type = value.get("type").and_then(|t| t.as_str()).unwrap_or("");
+    if frame_type == "error" && value.get("streamId").and_then(|v| v.as_str()) == Some(stream_id) {
+        return FrameOutcome::Failed;
+    }
     if frame_type == "end" && value.get("streamId").and_then(|v| v.as_str()) == Some(stream_id) {
         return FrameOutcome::End;
     }
@@ -190,6 +213,14 @@ fn frame_outcome(text: &str, stream_id: &str) -> FrameOutcome {
     let Some(item) = value.get("value") else {
         return FrameOutcome::Ignore;
     };
+    if item.get("type").and_then(|t| t.as_str()) == Some("ready") {
+        return item.get("clientId").and_then(Value::as_str)
+            .map(|id| FrameOutcome::Ready(id.to_owned())).unwrap_or(FrameOutcome::Failed);
+    }
+    if item.get("type").and_then(|t| t.as_str()) == Some("waterfall") {
+        return item.get("eventId").and_then(Value::as_str)
+            .map(|id| FrameOutcome::Passive(id.to_owned())).unwrap_or(FrameOutcome::Failed);
+    }
     if item.get("type").and_then(|t| t.as_str()) != Some("emit") {
         return FrameOutcome::Ignore;
     }
@@ -223,6 +254,7 @@ fn frame_outcome(text: &str, stream_id: &str) -> FrameOutcome {
                 return FrameOutcome::Ignore;
             };
             FrameOutcome::Event(SessionEvent::Added {
+                running: args.first().and_then(|v| v.get("running")).and_then(Value::as_bool),
                 session_id: session_id.to_string(),
             })
         }
@@ -256,11 +288,12 @@ fn apply_event(
             };
             (prev == Some(true) && !running).then_some(session_id)
         }
-        SessionEvent::Added { session_id } => {
-            baseline
-                .lock()
-                .unwrap()
-                .insert(session_id.clone(), Some(false));
+        SessionEvent::Added { session_id, running } => {
+            // This is also emitted on agent availability changes, not only
+            // session creation. Never overwrite a known running edge with idle.
+            let mut map = baseline.lock().unwrap();
+            let current = map.entry(session_id).or_insert(running);
+            if running == Some(true) { *current = Some(true); }
             None
         }
         SessionEvent::Removed { session_id } => {
@@ -271,13 +304,20 @@ fn apply_event(
 }
 
 /// A session finished. Notify only if the user isn't already looking at it.
+fn suppress_notification(visible: bool, minimized: bool, focused: bool) -> bool {
+    visible && !minimized && focused
+}
+
 fn on_task_finished(app: &AppHandle, session_id: &str) {
-    let visible = app
-        .get_webview_window("main")
-        .is_some_and(|w| w.is_visible().unwrap_or(false));
-    if visible {
+    let viewing = app.get_webview_window("main").is_some_and(|w| {
+        suppress_notification(w.is_visible().unwrap_or(false),
+            w.is_minimized().unwrap_or(false), w.is_focused().unwrap_or(false))
+    });
+    if viewing {
+        crate::dsh::log_write(crate::dsh::LogLevel::Info, "monitor: completion observed; foreground window suppresses toast");
         return;
     }
+    crate::dsh::log_write(crate::dsh::LogLevel::Info, "monitor: completion observed; submitting toast");
 
     let title = resolve_session_title(session_id)
         .unwrap_or_else(|| {
@@ -293,7 +333,7 @@ fn on_task_finished(app: &AppHandle, session_id: &str) {
     // Short duration: the banner auto-collapses into Action Center if not tapped.
     // "ack" collapses the banner (any action click dismisses it); "open window"
     // restores + focuses the window via the in-process activation callback.
-    let _ = Toast::new(crate::TOAST_AUMID)
+    let result = Toast::new(crate::TOAST_AUMID)
         .title("DSH")
         .text1(&body)
         .duration(ToastDuration::Short)
@@ -312,6 +352,9 @@ fn on_task_finished(app: &AppHandle, session_id: &str) {
             Ok(())
         })
         .show();
+    if result.is_err() {
+        crate::dsh::log_write(crate::dsh::LogLevel::Warn, "monitor: Windows rejected completion toast");
+    }
 }
 
 /// Look up a session's display title for the notification body via the
@@ -386,7 +429,7 @@ mod tests {
         );
         assert_eq!(
             frame_outcome(&frame, "sid"),
-            FrameOutcome::Event(SessionEvent::Added { session_id: "s2".into() })
+            FrameOutcome::Event(SessionEvent::Added { session_id: "s2".into(), running: Some(false) })
         );
     }
 
@@ -406,7 +449,7 @@ mod tests {
             "value": { "type": "ready", "clientId": "c", "host": { "home": "h" } }
         })
         .to_string();
-        assert_eq!(frame_outcome(&ready, "sid"), FrameOutcome::Ignore);
+        assert_eq!(frame_outcome(&ready, "sid"), FrameOutcome::Ready("c".into()));
         let other = emit("api-session/status", serde_json::json!(["x", true]))
             .replace("\"sid\"", "\"other\"");
         assert_eq!(frame_outcome(&other, "sid"), FrameOutcome::Ignore);
@@ -444,11 +487,44 @@ mod tests {
         // Steady idle never re-fires.
         assert_eq!(apply_event(&baseline, status("a", false)), None);
         // A newly added session starts idle: a later finish still fires.
-        assert_eq!(apply_event(&baseline, SessionEvent::Added { session_id: "b".into() }), None);
+        assert_eq!(apply_event(&baseline, SessionEvent::Added { session_id: "b".into(), running: Some(false) }), None);
         assert_eq!(apply_event(&baseline, status("b", true)), None);
         assert_eq!(apply_event(&baseline, status("b", false)), Some("b".into()));
         // Removed sessions forget their baseline.
         assert_eq!(apply_event(&baseline, SessionEvent::Removed { session_id: "b".into() }), None);
         assert_eq!(apply_event(&baseline, status("b", false)), None);
     }
+    #[test]
+    fn availability_refresh_does_not_erase_completion_edge() {
+        let baseline = Mutex::new(HashMap::new());
+        for frame in [emit("api-session/status", json!(["a", true])),
+            emit("api-session/added", json!([{"sessionId":"a","running":false}]))] {
+            if let FrameOutcome::Event(event) = frame_outcome(&frame, "sid") {
+                assert_eq!(apply_event(&baseline, event), None);
+            } else { panic!("official event shape rejected"); }
+        }
+        let FrameOutcome::Event(done) = frame_outcome(&emit("api-session/status",json!(["a",false])),"sid") else {panic!()};
+        assert_eq!(apply_event(&baseline, done), Some("a".into()));
+    }
+    #[test]
+    fn only_visible_unminimized_foreground_suppresses_toast() {
+        assert!(suppress_notification(true, false, true));
+        assert!(!suppress_notification(true, true, true));
+        assert!(!suppress_notification(true, false, false));
+        assert!(!suppress_notification(false, false, false));
+    }
+    #[test]
+    fn logical_stream_errors_trigger_reconnect() {
+        assert_eq!(frame_outcome(r#"{"type":"error","streamId":"sid"}"#, "sid"),FrameOutcome::Failed);
+    }
+
+    #[test]
+    fn running_summary_seeds_baseline_and_interactive_events_are_declined() {
+        let baseline = Mutex::new(HashMap::new());
+        let FrameOutcome::Event(event) = frame_outcome(&emit("api-session/added",json!([{"sessionId":"a","running":true}])),"sid") else {panic!()};
+        assert_eq!(apply_event(&baseline,event),None);
+        assert_eq!(apply_event(&baseline,SessionEvent::Status{session_id:"a".into(),running:false}),Some("a".into()));
+        assert_eq!(frame_outcome(r#"{"type":"item","streamId":"sid","value":{"type":"waterfall","eventId":"evt"}}"#, "sid"),FrameOutcome::Passive("evt".into()));
+    }
+
 }

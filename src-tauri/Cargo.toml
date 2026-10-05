@@ -1,6 +1,6 @@
 [package]
 name = "dsh-desktop-windowos"
-version = "1.6.70"
+version = "1.6.71"
 description = "DeepSeek Harness desktop shell"
 authors = ["RAFOLIE"]
 edition = "2021"
@@ -56,7 +56,7 @@ windows-sys = { version = "0.52", features = ["Win32_Globalization", "Win32_Foun
 # 127.0.0.1:3080, so the exchanged cookie must enter the jar as SameSite=None.
 # Pinned to the tree's existing webview2-com (tauri 2.11 → 0.38, windows 0.61).
 webview2-com = "0.38"
-windows = { version = "0.61", features = [] }
+windows = { version = "0.61", features = ["Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_System_Com"] }
 
 [profile.release]
 # Size-first profile for a portable single-exe deliverable.

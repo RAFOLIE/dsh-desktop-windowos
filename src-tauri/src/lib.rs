@@ -9,6 +9,7 @@ mod npm_operation;
 mod web_shortcut;
 mod menu;
 mod monitor;
+mod directory_picker;
 mod update;
 
 use tauri::{
@@ -641,7 +642,7 @@ pub fn run() {    tauri::Builder::default()
         }))
         .plugin(tauri_plugin_opener::init())
         .manage(dsh::DshState::new())
-        .invoke_handler(tauri::generate_handler![window_shell_ready, app_web_open_status, dsh_current_status, dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_source, dsh_backend_update_status, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, dsh_webchat_url, dsh_rollback_dsh, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_tray_click_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
+        .invoke_handler(tauri::generate_handler![directory_picker::pick_workspace_directory, window_shell_ready, app_web_open_status, dsh_current_status, dsh_retry, dsh_download, dsh_custom_path, dsh_install_npm, dsh_npm_probe, env_info, open_path, log_tail, diagnostic_export, dsh_restart_backend, app_full_restart, dsh_npm_channels, dsh_backend_source, dsh_backend_update_status, dsh_backend_upgrade, dsh_self_update_check, app_latest_stable, app_self_update, app_get_update_config, app_set_update_config, app_get_shell_settings, dsh_browser_session_token, dsh_webchat_url, dsh_rollback_dsh, app_set_ui_theme, app_set_ui_locale, app_set_close_action, app_set_tray_click_action, app_set_autostart, app_set_always_on_top, dsh_exit, window_minimize, window_toggle_maximize, window_close, window_start_drag, window_is_maximized])
         .setup(|app| {
             // Session-start log rotation (ComfyUI-style) before anything logs
             // or spawns: previous session archived under a timestamped name.
@@ -677,6 +678,7 @@ pub fn run() {    tauri::Builder::default()
             // `location.origin === 'http://127.0.0.1:3080'` so it installs the
             // link context menu exactly inside the webchat iframe.
             .initialization_script(&menu::init_script())
+            .initialization_script(include_str!("directory-picker.js"))
             // WebView2's default drag-drop handler swallows file drops before
             // the page sees them, so HTML5 drag-and-drop (image attachments)
             // only works with the handler disabled — the tauri-documented
