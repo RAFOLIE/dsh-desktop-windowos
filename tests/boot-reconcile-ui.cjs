@@ -86,7 +86,25 @@ fs.mkdirSync(output,{recursive:true});
   await page3.screenshot({path:require('node:path').join(output,'boot-reconcile-3-null-pull.png')});
   await page3.close();
 
+  // Full-page reload must resolve authentication again, without backend restart.
+  for (const payload of [{status:'ready',attached:false}, {status:'starting',method:'dsh web'}, {status:'error',message:'fixture backend unavailable'}]) {
+    const page=await newPage({payload});
+    await page.goto('http://127.0.0.1:1420/');
+    await page.waitForFunction(()=>window.testCalled('app_web_open_status'));
+    await page.reload();
+    await page.waitForFunction(()=>window.testCalled('app_web_open_status'));
+    if(payload.status==='ready') {
+      await page.locator('.webchat').waitFor({state:'visible'});
+      assert.equal(await page.evaluate(()=>window.testCalled('dsh_webchat_url')),true);
+    } else {
+      await page.locator('.boot-wrap').waitFor({state:'visible'});
+      assert.equal(await page.locator('.webchat').count(),0);
+      if(payload.status==='error') await page.getByText('fixture backend unavailable',{exact:true}).waitFor();
+    }
+    assert.equal(await page.evaluate(()=>window.testCalls.some(c=>['dsh_restart_backend','app_full_restart','dsh_backend_upgrade'].includes(c.cmd))),false);
+    await page.close();
+  }
   assert.deepEqual(errors,[]);
   await browser.close();
-  console.log('PASS: boot reconciles from a lost re-push; stale pull discarded; null pull silent, push still works');
+  console.log('PASS: boot reconciles from a lost re-push; stale pull discarded; null pull silent, push still works; full reload reconciles ready/starting/error without backend restart');
 })().catch(e=>{console.error(e);process.exit(1);});

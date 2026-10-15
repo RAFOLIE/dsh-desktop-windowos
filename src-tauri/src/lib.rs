@@ -4,6 +4,7 @@
 mod explorer_compat;
 mod dsh;
 mod startup_policy;
+mod window_geometry;
 mod backend_update;
 mod npm_operation;
 mod web_shortcut;
@@ -134,18 +135,20 @@ fn tray_opens_window(action: &str, event: &TrayIconEvent) -> bool {
 
 /// Tray menu built for the current locale (ids stay stable; only labels flip).
 fn build_tray_menu<M: Manager<Wry>>(manager: &M) -> tauri::Result<Menu<Wry>> {
-    let (t_open, t_restart, t_restart_app, t_update, t_env, t_quit) =
+    let (t_open, t_reload, t_restart, t_restart_app, t_update, t_env, t_quit) =
         match dsh::resolved_locale().as_str() {
             "zh-Hant" => (
                 "開啟 DSH",
+                "重新載入介面",
                 "重啟 dsh web（後端）",
                 "前後端重啟",
-                "檢查前端更新",
+                "檢查應用更新",
                 "環境資訊",
                 "退出（關閉 DSH）",
             ),
             "en" => (
                 "Open DSH",
+                "Reload interface",
                 "Restart dsh web (backend)",
                 "Restart shell & backend",
                 "Check for updates",
@@ -154,6 +157,7 @@ fn build_tray_menu<M: Manager<Wry>>(manager: &M) -> tauri::Result<Menu<Wry>> {
             ),
             "ja" => (
                 "DSH を開く",
+                "画面を再読み込み",
                 "dsh web（バックエンド）を再起動",
                 "シェルとバックエンドを再起動",
                 "更新を確認",
@@ -162,6 +166,7 @@ fn build_tray_menu<M: Manager<Wry>>(manager: &M) -> tauri::Result<Menu<Wry>> {
             ),
             "ko" => (
                 "DSH 열기",
+                "화면 새로고침",
                 "dsh web(백엔드) 재시작",
                 "셸·백엔드 재시작",
                 "업데이트 확인",
@@ -170,6 +175,7 @@ fn build_tray_menu<M: Manager<Wry>>(manager: &M) -> tauri::Result<Menu<Wry>> {
             ),
             "ru" => (
                 "Открыть DSH",
+                "Перезагрузить интерфейс",
                 "Перезапустить dsh web (бэкенд)",
                 "Перезапуск оболочки и бэкенда",
                 "Проверить обновления",
@@ -178,14 +184,16 @@ fn build_tray_menu<M: Manager<Wry>>(manager: &M) -> tauri::Result<Menu<Wry>> {
             ),
             _ => (
                 "Open DSH",
+                "重新加载界面",
                 "重启 dsh web(后端)",
                 "前后端重启",
-                "检查前端更新",
+                "检查应用更新",
                 "环境信息",
                 "退出(关闭 DSH)",
             ),
         };
     let open = MenuItem::with_id(manager, "open", t_open, true, None::<&str>)?;
+    let reload = MenuItem::with_id(manager, "reload-frontend", t_reload, true, None::<&str>)?;
     // Backend-only restart: relaunches the dsh web process, not the app.
     let restart = MenuItem::with_id(manager, "restart", t_restart, true, None::<&str>)?;
     let restart_app_item =
@@ -193,7 +201,7 @@ fn build_tray_menu<M: Manager<Wry>>(manager: &M) -> tauri::Result<Menu<Wry>> {
     let update = MenuItem::with_id(manager, "update", t_update, true, None::<&str>)?;
     let env = MenuItem::with_id(manager, "env", t_env, true, None::<&str>)?;
     let quit = MenuItem::with_id(manager, "quit", t_quit, true, None::<&str>)?;
-    Menu::with_items(manager, &[&open, &restart, &restart_app_item, &update, &env, &quit])
+    Menu::with_items(manager, &[&open, &reload, &restart, &restart_app_item, &update, &env, &quit])
 }
 
 /// Swap the existing tray icon's menu after a live locale change. The
@@ -487,6 +495,17 @@ pub(crate) fn show_main_window(app: &AppHandle) {
     }
 }
 
+/// Native recovery entry point: reload the page without touching backend lifecycle.
+/// Unsaved page state can be lost; persisted settings and backend sessions remain.
+fn reload_frontend(app: &AppHandle) {
+    show_main_window(app);
+    if let Some(window) = app.get_webview_window("main") {
+        if let Err(error) = window.reload() {
+            dsh::log_write(dsh::LogLevel::Warn, &format!("[dsh-desktop] interface reload failed: {error}"));
+        }
+    }
+}
+
 /// Quit path: tear down our DSH subprocess tree, then exit. Attached mode tears
 /// down to nothing and leaves the pre-existing instance running.
 fn quit_dsh(app: &AppHandle) {
@@ -660,7 +679,7 @@ pub fn run() {    tauri::Builder::default()
             // links, window.open from the link menu) is handed to the system
             // default browser instead of being silently denied by wry.
             let opener_app = app.handle().clone();
-            tauri::WebviewWindowBuilder::new(
+            let main_window = tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
                 tauri::WebviewUrl::App("index.html".into()),
@@ -769,6 +788,10 @@ pub fn run() {    tauri::Builder::default()
             })
             .build()?;
 
+            if let Err(error) = window_geometry::place(&main_window) {
+                dsh::log_write(dsh::LogLevel::Warn, &format!("[dsh-desktop] initial placement failed: {error}"));
+            }
+
             // A broken frontend must not leave an invisible application forever.
             let reveal_app = app.handle().clone();
             std::thread::spawn(move || {
@@ -807,6 +830,7 @@ pub fn run() {    tauri::Builder::default()
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_main_window(app),
+                    "reload-frontend" => reload_frontend(app),
                     "restart" => dsh::restart(app.clone()),
                     "restart-app" => update::restart_app(app),
                     "update" => update::check_now(app.clone()),
@@ -893,13 +917,52 @@ mod tray_tests {
         context.config_mut().identifier = "com.dsh.desktop.restore-test".into();
         let app = tauri::Builder::default().any_thread().build(context).expect("isolated app");
         let profile = std::env::temp_dir().join(format!("dsh-tray-restore-{}", uuid::Uuid::new_v4()));
-        let window = tauri::WebviewWindowBuilder::new(&app, "main", tauri::WebviewUrl::External("about:blank".parse().unwrap()))
-            .title("DSH isolated restore check").data_directory(profile).inner_size(360.0, 180.0).build().unwrap();
+        std::fs::create_dir_all(&profile).unwrap();
+        let fixture = profile.join("reload.html");
+        std::fs::write(&fixture, "<!doctype html><title>Isolated reload fixture</title><p>Reload check</p>").unwrap();
+        let loads = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let page_loads = loads.clone();
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", tauri::WebviewUrl::External(tauri::Url::from_file_path(&fixture).unwrap()))
+            .title("DSH isolated restore check").data_directory(profile).inner_size(360.0, 180.0)
+            .decorations(false).visible(false)
+            .on_page_load(move |_, payload| {
+                if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                    page_loads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                }
+            }).build().unwrap();
+        window_geometry::place(&window).unwrap();
         let handle = app.handle().clone();
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 let pause = || std::thread::sleep(std::time::Duration::from_millis(350));
+                let monitor = window.primary_monitor().unwrap().unwrap();
+                let area = monitor.work_area();
+                let size = window.inner_size().unwrap();
+                let position = window.outer_position().unwrap();
+                assert!(size.width <= area.size.width && size.height <= area.size.height);
+                assert!((position.x - area.position.x - ((area.size.width-size.width)/2) as i32).abs() <= 1);
+                assert!((position.y - area.position.y - ((area.size.height-size.height)/2) as i32).abs() <= 1);
+                show_main_window(&handle); pause();
+                let wait_load = |previous| {
+                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+                    while loads.load(std::sync::atomic::Ordering::SeqCst) <= previous {
+                        assert!(std::time::Instant::now() < deadline, "native reload did not finish");
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
+                };
+                wait_load(0);
+                println!("initial fixture loaded; geometry verified");
+                window.hide().unwrap(); pause();
+                let before = loads.load(std::sync::atomic::Ordering::SeqCst);
+                reload_frontend(&handle); wait_load(before); pause();
+                println!("hidden window reloaded and revealed");
+                assert!(window.is_visible().unwrap());
+                assert_eq!(window.inner_size().unwrap(), size);
+                assert_eq!(window.outer_position().unwrap(), position);
+                let before = loads.load(std::sync::atomic::Ordering::SeqCst);
+                reload_frontend(&handle); reload_frontend(&handle); wait_load(before); pause();
+                assert!(window.is_visible().unwrap());
                 window.minimize().unwrap(); pause(); assert!(window.is_minimized().unwrap());
                 show_main_window(&handle); pause(); assert!(!window.is_minimized().unwrap()); assert!(window.is_visible().unwrap());
                 window.hide().unwrap(); pause(); assert!(!window.is_visible().unwrap());
